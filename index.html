@@ -88,6 +88,8 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
 .xcell.X{color:var(--accent)} .xcell.O{color:var(--o)}
 .xcell.win{background:var(--win);border-color:var(--win);color:#1f2430}
 .xcell.old{opacity:.35}
+.xcell.X,.xcell.O{touch-action:none}
+.xcell.lifting{opacity:.25}
 .xcell.drop{background:var(--win);border-color:var(--win)}
 .tray{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
 .tray-hint{flex:1;text-align:center;color:var(--muted);font-size:.8rem}
@@ -106,7 +108,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
   <div class="games">
     <button class="gamebtn active" id="gBingo">🎱 Bingo</button>
     <button class="gamebtn" id="gXox">❌⭕ XOX</button>
-    <button class="iconbtn" id="musicBtn" title="Music on/off" aria-label="Music on/off">🔊</button>
+    <button class="iconbtn" id="musicBtn" title="Sound on/off" aria-label="Sound on/off">🔊</button>
   </div>
 
   <!-- ================= BINGO ================= -->
@@ -192,7 +194,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
 
     <div class="tray">
       <div class="token X" id="tokX" data-p="X">X</div>
-      <div class="tray-hint">Drag your mark onto a square, or just tap a square</div>
+      <div class="tray-hint">Drag a mark onto a square, tap a square, or drag your marks on the board to move them</div>
       <div class="token O" id="tokO" data-p="O">O</div>
     </div>
 
@@ -201,7 +203,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         <button class="btn" id="xNew">New round</button>
         <button class="btn alt" id="xReset">Reset scores</button>
       </div>
-      <p class="hint">Each player has only 3 marks on the board. Placing a 4th makes your oldest mark (shown faded) disappear. Get three in a row to win.</p>
+      <p class="hint">Each player has only 3 marks on the board. Placing a 4th makes your oldest mark (shown faded) disappear. Or use your turn to drag one of your marks to another empty square. Get three in a row to win.</p>
     </div>
   </section>
 </main>
@@ -237,6 +239,15 @@ const BINGO_SONG=[[523.25,1],[659.25,1],[783.99,1],[1046.5,2],[783.99,1],[1046.5
   [659.25,1],[783.99,1],[1046.5,1],[1318.5,1],[1568,2],[1318.5,1],[1568,1],[2093,5]];
 const WIN_SONG=[[523.25,1],[659.25,1],[783.99,1],[1046.5,3]];
 const LOSE_SONG=[[392,1],[349.23,1],[311.13,1],[261.63,3]];
+function speakNumber(n){
+  if(!musicOn||!('speechSynthesis' in window)) return;
+  try{
+    const u=new SpeechSynthesisUtterance(String(n));
+    u.rate=0.9;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
 document.getElementById('musicBtn').onclick=e=>{
   musicOn=!musicOn; if(!musicOn) stopMusic();
   e.currentTarget.textContent=musicOn?'🔊':'🔇';
@@ -451,7 +462,9 @@ function applyState(m){
   bnet.roster=Array.isArray(m.roster)?m.roster.slice(0,8).map(r=>({n:String((r&&r.n)||''),r:!!(r&&r.r),h:!!(r&&r.h)})):[];
   bnet.order=Array.isArray(m.order)?m.order.map(String):[];
   bnet.turn=m.turn?String(m.turn):null;
+  const before=calledNums.length;
   calledNums=Array.isArray(m.called)?m.called.filter(okNum):[];
+  if(bnet.phase==='playing' && calledNums.length===before+1) speakNumber(calledNums[calledNums.length-1]);
   bnet.winner=m.winner?String(m.winner):null;
   if(bnet.phase==='lobby') marked=Array(25).fill(false); else syncMarks();
   if(prev!=='playing' && bnet.phase==='playing'){ msg.textContent=''; }
@@ -490,6 +503,7 @@ function roomPick(i){
 function hostPick(name,n){
   if(bnet.phase!=='playing'||bnet.turn!==name||!Number.isInteger(n)||n<1||n>25||calledNums.includes(n)) return;
   calledNums.push(n);
+  speakNumber(n);
   syncMarks();
   const o=bnet.order, i=o.indexOf(bnet.turn);
   bnet.turn=o[(i+1)%o.length];
@@ -656,8 +670,10 @@ function onNetData(m){
   if(!m||typeof m!=='object') return;
   if(net.role==='host'){
     if(m.t==='move'){
-      const i=m.i;
-      if(Number.isInteger(i)&&i>=0&&i<9&&!xover&&xturn==='O'&&!xb[i]) xplace(i); else sendState();
+      const i=m.i, f=m.from;
+      if(Number.isInteger(f)){
+        if(Number.isInteger(i)&&i>=0&&i<9&&f>=0&&f<9&&!xover&&xturn==='O'&&xb[f]==='O'&&!xb[i]) xdoMove(f,i); else sendState();
+      } else if(Number.isInteger(i)&&i>=0&&i<9&&!xover&&xturn==='O'&&!xb[i]) xplace(i); else sendState();
     } else if(m.t==='new'){ xNewRound(false); sendState(); }
     else if(m.t==='reset'){ xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); sendState(); }
   } else if(m.t==='state'){
@@ -717,6 +733,7 @@ function xrender(){
     b.setAttribute('aria-label','Cell '+(i+1)+(v?' '+v:' empty'));
     b.dataset.i=i;
     b.onclick=()=>xplay(i);
+    if(v) b.addEventListener('pointerdown',ev=>startBoardDrag(ev,i));
     xgrid.appendChild(b);
   });
   const cpu=isCpu();
@@ -744,6 +761,24 @@ function xplace(i){
   xb[i]=xturn;
   xq[xturn].push(i);
   if(xq[xturn].length>XMAX){ xb[xq[xturn].shift()]=null; }
+  xfinish();
+}
+function xdoMove(from,to){
+  xb[from]=null; xb[to]=xturn;
+  const q=xq[xturn], k=q.indexOf(from);
+  if(k>-1) q.splice(k,1);
+  q.push(to);
+  xfinish();
+}
+function xmove(from,to){
+  if(xover||from===to||xb[to]||xb[from]!==xturn) return;
+  if(xmode==='online'){
+    if(!net.connected||xturn!==net.mark) return;
+    if(net.role!=='host'){ try{ net.conn.send({t:'move',i:to,from}); }catch(e){} return; }
+  } else if(isCpu() && xturn==='O') return;
+  xdoMove(from,to);
+}
+function xfinish(){
   const w=xwinner(xb);
   if(w){
     xover=true; xline=w.line; xscore[w.p]++;
@@ -850,6 +885,44 @@ function clearHover(){ if(hoverEl){hoverEl.classList.remove('drop');hoverEl=null
   t.addEventListener('pointerup',end);
   t.addEventListener('pointercancel',end);
 });
+
+/* Drag one of your marks already on the board to another empty square */
+function canDrag(p){
+  if(xover||xturn!==p) return false;
+  if(xmode==='online') return net.connected && net.mark===p;
+  if(isCpu()) return p==='X';
+  return true;
+}
+function startBoardDrag(e,i){
+  const p=xb[i];
+  if(!p||!canDrag(p)) return;
+  e.preventDefault();
+  const src=e.currentTarget;
+  src.classList.add('lifting');
+  const g=document.createElement('div');
+  g.className='drag-ghost'; g.textContent=p;
+  g.style.color=p==='X'?'var(--accent)':'var(--o)';
+  g.style.left=e.clientX+'px'; g.style.top=e.clientY+'px';
+  document.body.appendChild(g);
+  let hov=null;
+  const clr=()=>{ if(hov){ hov.classList.remove('drop'); hov=null; } };
+  const move=ev=>{
+    g.style.left=ev.clientX+'px'; g.style.top=ev.clientY+'px';
+    const c=cellAt(ev.clientX,ev.clientY);
+    if(c!==hov){ clr(); if(c && !xb[Number(c.dataset.i)]){ c.classList.add('drop'); hov=c; } }
+  };
+  const done=ev=>{
+    document.removeEventListener('pointermove',move);
+    document.removeEventListener('pointerup',done);
+    document.removeEventListener('pointercancel',done);
+    const c=ev.type==='pointerup'?cellAt(ev.clientX,ev.clientY):null;
+    g.remove(); clr(); src.classList.remove('lifting');
+    if(c){ const to=Number(c.dataset.i); if(to!==i) xmove(i,to); }
+  };
+  document.addEventListener('pointermove',move);
+  document.addEventListener('pointerup',done);
+  document.addEventListener('pointercancel',done);
+}
 xrender();
 </script>
 </body>
