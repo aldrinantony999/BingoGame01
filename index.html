@@ -135,6 +135,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         <button class="tab active" id="modeStrict">Called numbers only</button>
         <button class="tab" id="modeFree">Free cross (any)</button>
       </div>
+      <div id="callerBox">
       <label for="numInput">Called number (1–25)</label>
       <div class="row">
         <input id="numInput" type="number" inputmode="numeric" min="1" max="25" placeholder="e.g. 17">
@@ -150,13 +151,40 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
           <option value="te-IN">Telugu</option>
         </select>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn alt" id="randCallBtn">🎲 Call random number</button>
+      </div>
       <div class="hint" id="heard"></div>
+      </div>
       <div class="msg" id="msg"></div>
       <div class="hint" id="calledList"></div>
       <div class="row" style="margin-top:8px">
         <button class="btn alt" id="clearMarksBtn">Clear all crosses</button>
       </div>
       <p class="hint" id="playHint"></p>
+    </div>
+
+    <div class="panel" id="bRoomPanel">
+      <label>Play with friends (room)</label>
+      <div id="bStart">
+        <div class="row">
+          <input id="bName" type="text" maxlength="12" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" style="text-transform:none;letter-spacing:normal;text-align:left">
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="bCreateBtn">Create room</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="bJoinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+          <button class="btn alt" id="bJoinBtn">Join</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn alt hidden" id="bNewGame">New game for everyone</button>
+        <button class="btn alt hidden" id="bLeaveBtn">Leave room</button>
+      </div>
+      <div class="msg" id="bMsg"></div>
+      <div class="hint" id="bPlayers"></div>
+      <p class="hint">The player who creates the room is the host and calls the numbers (type, speak, or tap Call random number). Everyone else joins with the code and sets their own card. Called numbers are crossed automatically, and the first BINGO is announced to the whole room.</p>
     </div>
   </section>
 
@@ -314,7 +342,8 @@ function render(){
   });
   letters.forEach((el,k)=>el.classList.toggle('on',k<wins));
   banner.textContent=wins>=5?'🎉 BINGO!':(wins?`${wins} line${wins>1?'s':''} complete`:'');
-  if(wins>=5){ if(!bingoShown){ bingoShown=true; stopListening(); playSong(BINGO_SONG,0.16); } }
+  if(bnet.winner && wins<5) banner.textContent='🏆 '+bnet.winner+' got BINGO!';
+  if(wins>=5){ if(!bingoShown){ bingoShown=true; stopListening(); playSong(BINGO_SONG,0.16); roomBingo(); } }
   else { if(bingoShown) stopMusic(); bingoShown=false; }
   if(mode==='setup'){
     const n=nextNumber();
@@ -324,6 +353,7 @@ function render(){
   document.getElementById('playHint').textContent=free?'Tap any number on the card to cross it. Tap again to undo.':'Type each called number and press Cross. You can only tap numbers that have been called.';
   document.getElementById('modeStrict').classList.toggle('active',!free);
   document.getElementById('modeFree').classList.toggle('active',free);
+  roomRender();
 }
 function addNumber(){
   const n=parseInt(input.value,10);
@@ -331,6 +361,7 @@ function addNumber(){
   input.value='';
   const idx=card.indexOf(n);
   if(!calledNums.includes(n)) calledNums.push(n);
+  roomBroadcastCall(n);
   if(idx>-1){ marked[idx]=true; msg.textContent=`Crossed ${n}.`; }
   else msg.textContent=`${n} isn’t on your card yet. Place it in Set numbers.`;
   render(); input.focus();
@@ -373,6 +404,7 @@ function parseNumbers(text){
 }
 function callNumber(n){
   if(!calledNums.includes(n)) calledNums.push(n);
+  roomBroadcastCall(n);
   const idx=card.indexOf(n);
   if(idx>-1){ marked[idx]=true; msg.textContent=`Heard ${n}: crossed.`; }
   else msg.textContent=`Heard ${n}, but it isn’t on your card.`;
@@ -414,6 +446,177 @@ function startListening(){
 micBtn.onclick=()=>{ if(listening) stopListening(); else startListening(); };
 langSel.onchange=()=>{ if(listening){ stopListening(); startListening(); } };
 if(!SR){ micBtn.disabled=true; heardEl.textContent='Voice recognition isn’t supported in this browser. Try Chrome, Edge or Safari.'; }
+/* ============ Bingo room (host calls numbers, friends join with a code) ============ */
+const BR_PREFIX='bingoxox-b-';
+const bnet={peer:null,role:null,code:null,name:'',conn:null,players:[],names:[],winner:null,connected:false,timer:null};
+function bmsg(t){ document.getElementById('bMsg').textContent=t; }
+function bReady(){
+  if(typeof Peer==='undefined'){ bmsg('Rooms couldn’t load. Check your internet connection and reload.'); return false; }
+  return true;
+}
+function bnames(){ return [bnet.name+' (host)'].concat(bnet.players.map(p=>p.name)); }
+function bcast(m){ bnet.players.forEach(p=>{ try{ p.conn.send(m); }catch(e){} }); }
+function roomBroadcastCall(n){ if(bnet.role==='host') bcast({t:'call',n,called:calledNums.slice()}); }
+function bAnnounce(name){
+  if(bnet.winner) return;
+  bnet.winner=name; bcast({t:'winner',name});
+  if(name!==bnet.name) playSong(WIN_SONG,0.18);
+}
+function roomBingo(){
+  if(bnet.role==='host') bAnnounce(bnet.name);
+  else if(bnet.role==='guest' && bnet.connected){ try{ bnet.conn.send({t:'bingo'}); }catch(e){} }
+}
+function bLeave(m){
+  clearTimeout(bnet.timer);
+  const peer=bnet.peer, conn=bnet.conn, ps=bnet.players;
+  bnet.peer=null; bnet.conn=null; bnet.role=null; bnet.code=null; bnet.players=[]; bnet.names=[]; bnet.winner=null; bnet.connected=false;
+  try{ ps.forEach(p=>p.conn.close()); }catch(e){}
+  try{ conn&&conn.close(); }catch(e){}
+  try{ peer&&peer.destroy(); }catch(e){}
+  bmsg(typeof m==='string'?m:''); render();
+}
+function bError(e){
+  let m='Connection problem. Please try again.';
+  if(e&&e.type==='peer-unavailable') m='Room not found. Check the code and try again.';
+  else if(e&&['network','server-error','socket-error','socket-closed'].includes(e.type)) m='Couldn’t reach the online service. Check your internet connection.';
+  bLeave(m);
+}
+function bCreate(tries){
+  tries=tries||0;
+  if(!bReady()) return;
+  const code=newCode();
+  bmsg('Creating room…');
+  const peer=new Peer(BR_PREFIX+code);
+  bnet.peer=peer; bnet.role='host'; bnet.code=code; bnet.players=[]; bnet.winner=null; bnet.connected=true;
+  bnet.name=document.getElementById('bName').value.trim().slice(0,12)||'Host';
+  peer.on('open',()=>{ if(bnet.peer===peer){ bmsg('Room code: '+code+'. Friends join with this code. You call the numbers.'); render(); } });
+  peer.on('connection',c=>{
+    if(bnet.peer!==peer) return;
+    c.on('data',m=>bHostData(c,m));
+    c.on('close',()=>bDrop(c));
+    c.on('error',()=>bDrop(c));
+  });
+  peer.on('error',e=>{
+    if(bnet.peer!==peer) return;
+    if(e.type==='unavailable-id' && tries<4){ bnet.peer=null; try{peer.destroy()}catch(_){} bCreate(tries+1); return; }
+    bError(e);
+  });
+  render();
+}
+function bHostData(c,m){
+  if(!m||typeof m!=='object') return;
+  let p=bnet.players.find(x=>x.conn===c);
+  if(m.t==='hello' && !p){
+    if(bnet.players.length>=7){ try{ c.send({t:'full'}); }catch(e){} setTimeout(()=>{ try{c.close()}catch(e){} },400); return; }
+    let name=String(m.name||'').trim().slice(0,12)||('Player '+(bnet.players.length+1));
+    const base=name; let k=2;
+    const taken=n=>n===bnet.name||bnet.players.some(x=>x.name===n);
+    while(taken(name)) name=base+' '+(k++);
+    p={conn:c,name}; bnet.players.push(p);
+    try{
+      c.send({t:'welcome',name,names:bnames()});
+      c.send({t:'sync',called:calledNums.slice()});
+      if(bnet.winner) c.send({t:'winner',name:bnet.winner});
+    }catch(e){}
+    bcast({t:'players',names:bnames()});
+    bmsg(name+' joined.'); render();
+  } else if(m.t==='bingo' && p){
+    bAnnounce(p.name); render();
+  }
+}
+function bDrop(c){
+  if(!bnet.peer||bnet.role!=='host') return;
+  const i=bnet.players.findIndex(x=>x.conn===c);
+  if(i<0) return;
+  const name=bnet.players[i].name;
+  bnet.players.splice(i,1);
+  bcast({t:'players',names:bnames()});
+  bmsg(name+' left.'); render();
+}
+function bJoin(){
+  if(!bReady()) return;
+  const code=document.getElementById('bJoinCode').value.trim().toUpperCase();
+  if(code.length!==4){ bmsg('Enter the 4-character room code.'); return; }
+  stopListening();
+  bmsg('Connecting…');
+  const peer=new Peer();
+  bnet.peer=peer; bnet.role='guest'; bnet.code=code; bnet.winner=null; bnet.names=[]; bnet.connected=false;
+  peer.on('open',()=>{
+    if(bnet.peer!==peer) return;
+    const c=peer.connect(BR_PREFIX+code,{reliable:true});
+    bnet.conn=c;
+    c.on('open',()=>{ if(bnet.conn===c){ try{ c.send({t:'hello',name:document.getElementById('bName').value.trim()}); }catch(e){} } });
+    c.on('data',bGuestData);
+    c.on('close',()=>{ if(bnet.conn===c) bLeave('The host closed the room.'); });
+    c.on('error',()=>{ if(bnet.conn===c) bLeave('Connection lost.'); });
+    bnet.timer=setTimeout(()=>{ if(bnet.peer===peer && !bnet.connected) bLeave('Couldn’t connect. Check the code and try again.'); },15000);
+  });
+  peer.on('error',e=>{ if(bnet.peer===peer) bError(e); });
+  render();
+}
+function bGuestData(m){
+  if(!m||typeof m!=='object') return;
+  const okNum=n=>Number.isInteger(n)&&n>=1&&n<=25;
+  switch(m.t){
+    case 'welcome':
+      bnet.connected=true; clearTimeout(bnet.timer);
+      bnet.name=String(m.name||'Player'); bnet.names=Array.isArray(m.names)?m.names.map(String):[];
+      bmsg('Joined as '+bnet.name+'. Set your numbers, then wait for the host to call.');
+      break;
+    case 'players': bnet.names=Array.isArray(m.names)?m.names.map(String):[]; break;
+    case 'sync': {
+      const called=Array.isArray(m.called)?m.called.filter(okNum):[];
+      calledNums=called;
+      called.forEach(n=>{ const i=card.indexOf(n); if(i>-1) marked[i]=true; });
+      break;
+    }
+    case 'call': {
+      const n=m.n; if(!okNum(n)) return;
+      if(!calledNums.includes(n)) calledNums.push(n);
+      const i=card.indexOf(n); if(i>-1) marked[i]=true;
+      msg.textContent=`Host called ${n}`+(i>-1?': crossed.':'.');
+      break;
+    }
+    case 'winner':
+      bnet.winner=String(m.name||'Someone');
+      if(bnet.winner!==bnet.name) playSong(WIN_SONG,0.18);
+      break;
+    case 'reset':
+      marked=Array(25).fill(false); calledNums=[]; bnet.winner=null; msg.textContent='New game started.'; stopMusic();
+      break;
+    case 'full': bLeave('The room is full.'); return;
+  }
+  render();
+}
+function bNewGame(){
+  marked=Array(25).fill(false); calledNums=[]; bnet.winner=null; msg.textContent='New game started.'; stopMusic();
+  bcast({t:'reset'}); render();
+}
+function roomRender(){
+  const inRoom=!!bnet.peer, host=bnet.role==='host', guest=bnet.role==='guest';
+  document.getElementById('bStart').classList.toggle('hidden',inRoom);
+  document.getElementById('bLeaveBtn').classList.toggle('hidden',!inRoom);
+  document.getElementById('bNewGame').classList.toggle('hidden',!host);
+  document.getElementById('callerBox').classList.toggle('hidden',guest);
+  const names=host?bnames():bnet.names;
+  document.getElementById('bPlayers').textContent=(inRoom&&names.length)?'In room ('+names.length+'): '+names.join(', '):'';
+  if(guest) document.getElementById('playHint').textContent='The host calls the numbers and they are crossed for you.';
+}
+document.getElementById('bCreateBtn').onclick=()=>bCreate();
+document.getElementById('bJoinBtn').onclick=bJoin;
+document.getElementById('bLeaveBtn').onclick=()=>bLeave();
+document.getElementById('bNewGame').onclick=bNewGame;
+document.getElementById('bJoinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') bJoin(); });
+document.getElementById('randCallBtn').onclick=()=>{
+  if(bnet.role==='guest') return;
+  const pool=[]; for(let n=1;n<=25;n++) if(!calledNums.includes(n)) pool.push(n);
+  if(!pool.length){ msg.textContent='All 25 numbers have been called.'; return; }
+  const n=pool[Math.floor(Math.random()*pool.length)];
+  calledNums.push(n); roomBroadcastCall(n);
+  const idx=card.indexOf(n); if(idx>-1) marked[idx]=true;
+  msg.textContent=`Called ${n}`+(idx>-1?': crossed.':'.');
+  render();
+};
 input.addEventListener('keydown',e=>{if(e.key==='Enter')addNumber()});
 render();
 
