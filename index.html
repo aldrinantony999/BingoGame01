@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bingo &amp; XOX</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f4f1ea; --surface:#ffffff; --text:#1f2430; --muted:#6b7280;
+  --accent:#d9480f; --accent-text:#ffffff; --cell:#fff7ed; --cell-border:#fdba74;
+  --mark:#2f9e44; --mark-text:#ffffff; --win:#f59f00; --off:#d1d5db; --o:#1971c2;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#16181d; --surface:#222630; --text:#eceef3; --muted:#9aa1b0;
+    --accent:#f76707; --cell:#2c2f3a; --cell-border:#5c4326; --mark:#37b24d; --off:#454a58; --o:#4dabf7;
+  }
+}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:460px;padding:16px}
+.hidden{display:none !important}
+
+/* game switcher */
+.games{display:flex;gap:8px;margin-bottom:12px}
+.gamebtn{flex:1;padding:12px 8px;border:2px solid var(--cell-border);background:var(--surface);color:var(--text);
+  border-radius:12px;font-weight:800;font-size:1rem;cursor:pointer;font-family:inherit}
+.gamebtn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.iconbtn{flex:0 0 auto;width:48px;padding:0;border:2px solid var(--cell-border);background:var(--surface);
+  border-radius:12px;font-size:1.3rem;cursor:pointer}
+
+.letters{display:flex;justify-content:center;gap:10px;margin:6px 0 4px}
+.letters span{font-size:2rem;font-weight:900;color:var(--off);transition:color .2s,transform .2s}
+.letters span.on{color:var(--accent);transform:scale(1.15)}
+.sub{text-align:center;color:var(--muted);font-size:.95rem;margin-bottom:12px;min-height:1.3em}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tab{flex:1;padding:10px 6px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
+  border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;font-family:inherit}
+.tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.card{background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.cell{aspect-ratio:1;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
+  border-radius:10px;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;user-select:none;-webkit-user-select:none;padding:0;font-family:inherit;
+  transition:transform .1s;-webkit-tap-highlight-color:transparent}
+.cell:active{transform:scale(.94)}
+.cell.empty{border-style:dashed;color:var(--muted);font-size:1.2rem}
+.cell.marked{background:var(--mark);border-color:var(--mark);color:var(--mark-text)}
+.cell.marked::after{content:"✕";position:absolute;font-size:2.6rem;opacity:.35;font-weight:400}
+.cell.win{background:var(--win);border-color:var(--win);color:#1f2430}
+.banner{text-align:center;font-weight:800;font-size:1.2rem;margin:12px 0 0;min-height:1.5em;color:var(--win)}
+.panel{margin-top:14px;background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=number]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10px;
+  border:2px solid var(--cell-border);background:var(--cell);color:var(--text)}
+button.btn{padding:12px 16px;border:0;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
+  background:var(--accent);color:var(--accent-text);font-family:inherit}
+button.btn.alt{background:var(--cell);color:var(--text);border:2px solid var(--cell-border)}
+.hint{color:var(--muted);font-size:.82rem;margin:8px 0 0}
+select{padding:12px;border-radius:10px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);font-size:1rem;font-family:inherit}
+.btn.listening{background:#e03131;color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+input[type=text]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10px;border:2px solid var(--cell-border);
+  background:var(--cell);color:var(--text);text-transform:uppercase;letter-spacing:.2em;text-align:center}
+#xoxGame .tab{font-size:.85rem;padding:10px 2px}
+label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
+.msg{color:var(--accent);font-size:.85rem;min-height:1.2em;margin-top:6px}
+
+/* XOX */
+.title{text-align:center;font-size:2rem;font-weight:900;margin:6px 0 4px;color:var(--accent);letter-spacing:.1em}
+.score{display:flex;gap:8px;margin-bottom:12px}
+.score div{flex:1;text-align:center;background:var(--surface);border-radius:12px;padding:8px 4px;
+  box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:.8rem;color:var(--muted)}
+.score b{display:block;font-size:1.6rem;color:var(--text)}
+.score .sx b{color:var(--accent)} .score .so b{color:var(--o)}
+.xgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.xcell{aspect-ratio:1;border:2px solid var(--cell-border);background:var(--cell);border-radius:12px;
+  font-size:3.4rem;font-weight:900;cursor:pointer;font-family:inherit;padding:0;
+  display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.xcell:active{transform:scale(.95)}
+.xcell.X{color:var(--accent)} .xcell.O{color:var(--o)}
+.xcell.win{background:var(--win);border-color:var(--win);color:#1f2430}
+.xcell.old{opacity:.35}
+.xcell.drop{background:var(--win);border-color:var(--win)}
+.tray{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.tray-hint{flex:1;text-align:center;color:var(--muted);font-size:.8rem}
+.token{width:64px;height:64px;border-radius:14px;border:2px solid var(--cell-border);background:var(--surface);
+  font-size:2.4rem;font-weight:900;display:flex;align-items:center;justify-content:center;opacity:.35;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:default;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.token.X{color:var(--accent)} .token.O{color:var(--o)}
+.token.active{opacity:1;cursor:grab;box-shadow:0 0 0 3px var(--win)}
+.drag-ghost{position:fixed;z-index:1000;pointer-events:none;width:64px;height:64px;margin:-32px 0 0 -32px;
+  border-radius:14px;background:var(--surface);border:2px solid var(--win);font-size:2.6rem;font-weight:900;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+</style>
+</head>
+<body>
+<main>
+  <div class="games">
+    <button class="gamebtn active" id="gBingo">🎱 Bingo</button>
+    <button class="gamebtn" id="gXox">❌⭕ XOX</button>
+    <button class="iconbtn" id="musicBtn" title="Music on/off" aria-label="Music on/off">🔊</button>
+  </div>
+
+  <!-- ================= BINGO ================= -->
+  <section id="bingoGame">
+    <div class="letters" id="letters"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
+    <div class="sub" id="sub"></div>
+
+    <div class="tabs">
+      <button class="tab active" id="tabSetup">1. Set numbers</button>
+      <button class="tab" id="tabPlay">2. Play</button>
+    </div>
+
+    <div class="card">
+      <div class="grid" id="grid"></div>
+      <div class="banner" id="banner"></div>
+    </div>
+
+    <div class="panel" id="setupPanel">
+      <div class="row">
+        <button class="btn" id="randBtn">Fill randomly</button>
+        <button class="btn alt" id="clearAllBtn">Clear all boxes</button>
+      </div>
+      <p class="hint">Tap an empty box to place the next number (1, 2, 3…). Tap a filled box to clear it; that number becomes the next one to place.</p>
+    </div>
+
+    <div class="panel hidden" id="playPanel">
+      <div class="tabs" style="margin-bottom:10px">
+        <button class="tab active" id="modeStrict">Called numbers only</button>
+        <button class="tab" id="modeFree">Free cross (any)</button>
+      </div>
+      <label for="numInput">Called number (1–25)</label>
+      <div class="row">
+        <input id="numInput" type="number" inputmode="numeric" min="1" max="25" placeholder="e.g. 17">
+        <button class="btn" id="addBtn">Cross</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="micBtn">🎤 Listen for numbers</button>
+        <select id="langSel" aria-label="Speech language">
+          <option value="en-US">English (US)</option>
+          <option value="en-IN">English (India)</option>
+          <option value="hi-IN">Hindi</option>
+          <option value="ta-IN">Tamil</option>
+          <option value="te-IN">Telugu</option>
+        </select>
+      </div>
+      <div class="hint" id="heard"></div>
+      <div class="msg" id="msg"></div>
+      <div class="hint" id="calledList"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn alt" id="clearMarksBtn">Clear all crosses</button>
+      </div>
+      <p class="hint" id="playHint"></p>
+    </div>
+  </section>
+
+  <!-- ================= XOX ================= -->
+  <section id="xoxGame" class="hidden">
+    <div class="title">XOX</div>
+    <div class="sub" id="xStatus"></div>
+
+    <div class="tabs">
+      <button class="tab active" data-m="pvp">2 Players</button>
+      <button class="tab" data-m="easy">CPU Easy</button>
+      <button class="tab" data-m="hard">CPU Hard</button>
+      <button class="tab" data-m="online">🌐 Online</button>
+    </div>
+
+    <div class="panel hidden" id="onlinePanel" style="margin:0 0 12px">
+      <div class="row">
+        <button class="btn" id="createBtn">Create room</button>
+        <button class="btn alt hidden" id="leaveBtn">Leave room</button>
+      </div>
+      <div class="row" id="joinRow" style="margin-top:8px">
+        <input id="joinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+        <button class="btn alt" id="joinBtn">Join</button>
+      </div>
+      <div class="msg" id="onlineMsg"></div>
+      <p class="hint">One player taps Create room and shares the 4-letter code. The other types it and taps Join. The host plays X.</p>
+    </div>
+
+    <div class="score">
+      <div class="sx"><span id="lblX">Player X</span><b id="scX">0</b></div>
+      <div><span>Draws</span><b id="scD">0</b></div>
+      <div class="so"><span id="lblO">Player O</span><b id="scO">0</b></div>
+    </div>
+
+    <div class="card"><div class="xgrid" id="xgrid"></div></div>
+
+    <div class="tray">
+      <div class="token X" id="tokX" data-p="X">X</div>
+      <div class="tray-hint">Drag your mark onto a square, or just tap a square</div>
+      <div class="token O" id="tokO" data-p="O">O</div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <button class="btn" id="xNew">New round</button>
+        <button class="btn alt" id="xReset">Reset scores</button>
+      </div>
+      <p class="hint">Each player has only 3 marks on the board. Placing a 4th makes your oldest mark (shown faded) disappear. Get three in a row to win.</p>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* ============ Shared: music ============ */
+let musicOn=true, actx=null;
+function stopMusic(){ if(actx){ try{actx.close()}catch(e){} actx=null; } }
+function playSong(song,unit){
+  if(!musicOn) return;
+  try{
+    stopMusic();
+    const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+    actx=new AC();
+    let t=actx.currentTime+0.05;
+    song.forEach(([f,d])=>{
+      [[f,'square',0.06],[f/2,'triangle',0.12]].forEach(([fr,type,vol])=>{
+        const o=actx.createOscillator(), g=actx.createGain();
+        o.type=type; o.frequency.value=fr;
+        g.gain.setValueAtTime(0.0001,t);
+        g.gain.exponentialRampToValueAtTime(vol,t+0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001,t+d*unit*0.95);
+        o.connect(g); g.connect(actx.destination);
+        o.start(t); o.stop(t+d*unit);
+      });
+      t+=d*unit;
+    });
+  }catch(e){}
+}
+const BINGO_SONG=[[523.25,1],[659.25,1],[783.99,1],[1046.5,2],[783.99,1],[1046.5,3],
+  [880,1],[1046.5,1],[1318.5,1],[1046.5,2],[880,1],[783.99,3],
+  [659.25,1],[783.99,1],[1046.5,1],[1318.5,1],[1568,2],[1318.5,1],[1568,1],[2093,5]];
+const WIN_SONG=[[523.25,1],[659.25,1],[783.99,1],[1046.5,3]];
+const LOSE_SONG=[[392,1],[349.23,1],[311.13,1],[261.63,3]];
+document.getElementById('musicBtn').onclick=e=>{
+  musicOn=!musicOn; if(!musicOn) stopMusic();
+  e.currentTarget.textContent=musicOn?'🔊':'🔇';
+};
+
+/* ============ Game switcher ============ */
+function switchGame(g){
+  stopListening(); stopMusic(); clearTimeout(cpuTimer);
+  document.getElementById('gBingo').classList.toggle('active',g==='bingo');
+  document.getElementById('gXox').classList.toggle('active',g==='xox');
+  document.getElementById('bingoGame').classList.toggle('hidden',g!=='bingo');
+  document.getElementById('xoxGame').classList.toggle('hidden',g!=='xox');
+  document.title=g==='bingo'?'Bingo':'XOX';
+  if(g==='xox' && isCpu() && !xover && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
+}
+document.getElementById('gBingo').onclick=()=>switchGame('bingo');
+document.getElementById('gXox').onclick=()=>switchGame('xox');
+
+/* ============ BINGO ============ */
+const grid=document.getElementById('grid'), banner=document.getElementById('banner'),
+      msg=document.getElementById('msg'), sub=document.getElementById('sub'),
+      input=document.getElementById('numInput'), letters=[...document.querySelectorAll('#letters span')];
+let card=Array(25).fill(null), marked=Array(25).fill(false), mode='setup', bingoShown=false;
+let calledNums=[], free=false; // free=false: only called numbers can be crossed
+
+const LINES=[];
+for(let i=0;i<5;i++){
+  LINES.push([0,1,2,3,4].map(c=>i*5+c));
+  LINES.push([0,1,2,3,4].map(r=>r*5+i));
+}
+LINES.push([0,6,12,18,24],[4,8,12,16,20]);
+
+function nextNumber(){
+  for(let n=1;n<=25;n++) if(!card.includes(n)) return n;
+  return null;
+}
+function setMode(m){
+  mode=m; msg.textContent=''; if(m!=='play') stopListening();
+  document.getElementById('tabSetup').classList.toggle('active',m==='setup');
+  document.getElementById('tabPlay').classList.toggle('active',m==='play');
+  document.getElementById('setupPanel').classList.toggle('hidden',m!=='setup');
+  document.getElementById('playPanel').classList.toggle('hidden',m!=='play');
+  render();
+}
+function onCell(i){
+  if(mode==='setup'){
+    if(card[i]===null){
+      const n=nextNumber();
+      if(n!==null) card[i]=n;
+    } else { card[i]=null; marked[i]=false; }
+  } else {
+    if(card[i]===null) return;
+    if(!free && !calledNums.includes(card[i])){
+      msg.textContent=`Only called numbers can be crossed. Call ${card[i]} first, or switch to Free cross.`;
+      return;
+    }
+    msg.textContent='';
+    marked[i]=!marked[i];
+  }
+  render();
+}
+function render(){
+  grid.innerHTML='';
+  const winCells=new Set(); let wins=0;
+  if(mode==='play') LINES.forEach(l=>{ if(l.every(i=>marked[i])){wins++; l.forEach(i=>winCells.add(i));} });
+  card.forEach((v,i)=>{
+    const b=document.createElement('button');
+    b.className='cell'+(v===null?' empty':'')+(marked[i]?' marked':'')+(winCells.has(i)?' win':'');
+    b.textContent=v===null?'+':v;
+    b.onclick=()=>onCell(i);
+    grid.appendChild(b);
+  });
+  letters.forEach((el,k)=>el.classList.toggle('on',k<wins));
+  banner.textContent=wins>=5?'🎉 BINGO!':(wins?`${wins} line${wins>1?'s':''} complete`:'');
+  if(wins>=5){ if(!bingoShown){ bingoShown=true; stopListening(); playSong(BINGO_SONG,0.16); } }
+  else { if(bingoShown) stopMusic(); bingoShown=false; }
+  if(mode==='setup'){
+    const n=nextNumber();
+    sub.textContent=n===null?'All 25 numbers placed. Go to Play!':`Next number to place: ${n}`;
+  } else sub.textContent=free?'Free cross: tap any numbers to make bingo faster. Complete 5 lines to win.':'Cross only the numbers that are called. Complete 5 lines to win.';
+  document.getElementById('calledList').textContent=calledNums.length?'Called: '+calledNums.join(', '):'';
+  document.getElementById('playHint').textContent=free?'Tap any number on the card to cross it. Tap again to undo.':'Type each called number and press Cross. You can only tap numbers that have been called.';
+  document.getElementById('modeStrict').classList.toggle('active',!free);
+  document.getElementById('modeFree').classList.toggle('active',free);
+}
+function addNumber(){
+  const n=parseInt(input.value,10);
+  if(!(n>=1&&n<=25)){ msg.textContent='Please enter a number from 1 to 25.'; return; }
+  input.value='';
+  const idx=card.indexOf(n);
+  if(!calledNums.includes(n)) calledNums.push(n);
+  if(idx>-1){ marked[idx]=true; msg.textContent=`Crossed ${n}.`; }
+  else msg.textContent=`${n} isn’t on your card yet. Place it in Set numbers.`;
+  render(); input.focus();
+}
+function randomFill(){
+  const pool=Array.from({length:25},(_,i)=>i+1);
+  for(let i=24;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  card=pool; marked=Array(25).fill(false); calledNums=[]; render();
+}
+document.getElementById('tabSetup').onclick=()=>setMode('setup');
+document.getElementById('tabPlay').onclick=()=>setMode('play');
+document.getElementById('randBtn').onclick=randomFill;
+document.getElementById('clearAllBtn').onclick=()=>{card=Array(25).fill(null);marked=Array(25).fill(false);calledNums=[];render()};
+document.getElementById('clearMarksBtn').onclick=()=>{marked=Array(25).fill(false);calledNums=[];msg.textContent='';render()};
+document.getElementById('addBtn').onclick=addNumber;
+document.getElementById('modeStrict').onclick=()=>{free=false;msg.textContent='';render()};
+document.getElementById('modeFree').onclick=()=>{free=true;msg.textContent='';render()};
+
+/* Voice: recognise called numbers from speech */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const micBtn=document.getElementById('micBtn'), langSel=document.getElementById('langSel'), heardEl=document.getElementById('heard');
+let rec=null, listening=false;
+const NUMW={zero:0,one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,
+  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30};
+const HOMO=new Set(['to','too','for','ate']);
+function parseNumbers(text){
+  const t=text.toLowerCase().replace(/-/g,' ').replace(/[^a-z0-9\s]/g,' ').trim();
+  if(!t) return [];
+  const toks=t.split(/\s+/), out=[], single=toks.length===1;
+  for(let i=0;i<toks.length;i++){
+    const w=toks[i];
+    if(/^\d+$/.test(w)){ out.push(parseInt(w,10)); continue; }
+    if(w==='twenty' && i+1<toks.length && NUMW[toks[i+1]]>=1 && NUMW[toks[i+1]]<=5 && !HOMO.has(toks[i+1])){
+      out.push(20+NUMW[toks[i+1]]); i++; continue;
+    }
+    if(HOMO.has(w)){ if(single) out.push(NUMW[w]); continue; }
+    if(w in NUMW) out.push(NUMW[w]);
+  }
+  return out.filter(n=>n>=1&&n<=25);
+}
+function callNumber(n){
+  if(!calledNums.includes(n)) calledNums.push(n);
+  const idx=card.indexOf(n);
+  if(idx>-1){ marked[idx]=true; msg.textContent=`Heard ${n}: crossed.`; }
+  else msg.textContent=`Heard ${n}, but it isn’t on your card.`;
+  render();
+}
+function setListeningUI(on){
+  micBtn.classList.toggle('listening',on);
+  micBtn.textContent=on?'⏹ Stop listening':'🎤 Listen for numbers';
+}
+function stopListening(){
+  listening=false; setListeningUI(false);
+  if(rec){ const r=rec; rec=null; r.onend=null; try{r.stop()}catch(e){} }
+}
+function startListening(){
+  if(!SR) return;
+  const r=new SR(); rec=r;
+  r.lang=langSel.value; r.continuous=true; r.interimResults=false;
+  r.onresult=e=>{
+    for(let k=e.resultIndex;k<e.results.length;k++){
+      if(!e.results[k].isFinal) continue;
+      const text=e.results[k][0].transcript;
+      heardEl.textContent='Heard: “'+text.trim()+'”';
+      parseNumbers(text).forEach(callNumber);
+    }
+  };
+  r.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      stopListening(); heardEl.textContent='Microphone access is blocked. Allow the microphone for this page and try again.';
+    } else if(e.error==='audio-capture'){
+      stopListening(); heardEl.textContent='No microphone found.';
+    } else if(e.error==='network'){
+      stopListening(); heardEl.textContent='Voice recognition needs an internet connection.';
+    }
+  };
+  r.onend=()=>{ if(listening && rec===r){ try{r.start()}catch(e){} } };
+  try{ r.start(); listening=true; setListeningUI(true); heardEl.textContent='Listening… say a number from 1 to 25.'; }
+  catch(e){ heardEl.textContent='Could not start the microphone.'; }
+}
+micBtn.onclick=()=>{ if(listening) stopListening(); else startListening(); };
+langSel.onchange=()=>{ if(listening){ stopListening(); startListening(); } };
+if(!SR){ micBtn.disabled=true; heardEl.textContent='Voice recognition isn’t supported in this browser. Try Chrome, Edge or Safari.'; }
+input.addEventListener('keydown',e=>{if(e.key==='Enter')addNumber()});
+render();
+
+/* ============ XOX ============ */
+const XW=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+const xgrid=document.getElementById('xgrid'), xStatus=document.getElementById('xStatus');
+let xb=Array(9).fill(null), xturn='X', xstart='X', xover=false, xmode='pvp',
+    xscore={X:0,O:0,D:0}, xline=[], cpuTimer=null, xq={X:[],O:[]};
+const XMAX=3; // each player keeps only 3 marks on the board
+function isCpu(){ return xmode==='easy'||xmode==='hard'; }
+
+/* ============ Online play (PeerJS: no account or keys needed) ============ */
+const net={peer:null,conn:null,role:null,mark:null,connected:false,code:null,timer:null};
+const ROOM_PREFIX='bingoxox-';
+const onlineMsg=document.getElementById('onlineMsg'), createBtn=document.getElementById('createBtn'),
+      joinBtn=document.getElementById('joinBtn'), leaveBtn=document.getElementById('leaveBtn'),
+      joinCode=document.getElementById('joinCode'), joinRow=document.getElementById('joinRow');
+function say(t){ onlineMsg.textContent=t; }
+function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
+function netReady(){
+  if(typeof Peer==='undefined'){ say('Online play couldn’t load. Check your internet connection and reload.'); return false; }
+  return true;
+}
+function setOnlineUI(){
+  const inRoom=!!net.peer;
+  createBtn.classList.toggle('hidden',inRoom);
+  joinRow.classList.toggle('hidden',inRoom);
+  leaveBtn.classList.toggle('hidden',!inRoom);
+}
+function leaveRoom(m){
+  clearTimeout(net.timer);
+  const c=net.conn, p=net.peer;
+  net.conn=null; net.peer=null; net.role=null; net.mark=null; net.connected=false; net.code=null;
+  try{ c&&c.close(); }catch(e){}
+  try{ p&&p.destroy(); }catch(e){}
+  setOnlineUI(); say(typeof m==='string'?m:'');
+  if(xmode==='online'){ xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); }
+}
+function netError(e){
+  let m='Connection problem. Please try again.';
+  if(e&&e.type==='peer-unavailable') m='Room not found. Check the code and try again.';
+  else if(e&&['network','server-error','socket-error','socket-closed'].includes(e.type)) m='Couldn’t reach the online service. Check your internet connection.';
+  leaveRoom(m);
+}
+function createRoom(tries){
+  tries=tries||0;
+  if(!netReady()) return;
+  const code=newCode();
+  say('Creating room…');
+  const peer=new Peer(ROOM_PREFIX+code);
+  net.peer=peer; net.role='host'; net.mark='X'; net.code=code; setOnlineUI();
+  peer.on('open',()=>{ if(net.peer===peer) say('Room code: '+code+'. Share it with your friend and wait…'); });
+  peer.on('connection',c=>{
+    if(net.peer!==peer) return;
+    if(net.conn && net.connected){ c.on('open',()=>c.close()); return; }
+    net.conn=c; wireConn(c);
+  });
+  peer.on('error',e=>{
+    if(net.peer!==peer) return;
+    if(e.type==='unavailable-id' && tries<4){ net.peer=null; try{peer.destroy()}catch(_){} createRoom(tries+1); return; }
+    netError(e);
+  });
+}
+function joinRoom(){
+  if(!netReady()) return;
+  const code=joinCode.value.trim().toUpperCase();
+  if(code.length!==4){ say('Enter the 4-character room code.'); return; }
+  say('Connecting…');
+  const peer=new Peer();
+  net.peer=peer; net.role='guest'; net.mark='O'; net.code=code; setOnlineUI();
+  peer.on('open',()=>{
+    if(net.peer!==peer) return;
+    const c=peer.connect(ROOM_PREFIX+code,{reliable:true});
+    net.conn=c; wireConn(c);
+    net.timer=setTimeout(()=>{ if(!net.connected && net.peer===peer) leaveRoom('Couldn’t connect. Check the code and try again.'); },15000);
+  });
+  peer.on('error',e=>{ if(net.peer===peer) netError(e); });
+}
+function wireConn(c){
+  c.on('open',()=>{
+    if(net.conn!==c) return;
+    clearTimeout(net.timer);
+    net.connected=true;
+    if(net.role==='host'){
+      say('Friend joined! You are X and move first.');
+      xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); sendState();
+    } else {
+      say('Connected! You are O. The host (X) moves first.');
+      xrender();
+    }
+  });
+  c.on('data',onNetData);
+  c.on('close',()=>{ if(net.conn===c) leaveRoom('Your friend left the game.'); });
+  c.on('error',()=>{ if(net.conn===c) leaveRoom('Connection lost.'); });
+}
+function sendState(){
+  if(net.role!=='host'||!net.conn||!net.connected) return;
+  try{ net.conn.send({t:'state',xb,xq,xturn,xstart,xover,xline,xscore}); }catch(e){}
+}
+function onNetData(m){
+  if(!m||typeof m!=='object') return;
+  if(net.role==='host'){
+    if(m.t==='move'){
+      const i=m.i;
+      if(Number.isInteger(i)&&i>=0&&i<9&&!xover&&xturn==='O'&&!xb[i]) xplace(i); else sendState();
+    } else if(m.t==='new'){ xNewRound(false); sendState(); }
+    else if(m.t==='reset'){ xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); sendState(); }
+  } else if(m.t==='state'){
+    if(!Array.isArray(m.xb)||m.xb.length!==9||!m.xq||!Array.isArray(m.xq.X)||!Array.isArray(m.xq.O)) return;
+    const was=xover;
+    xb=m.xb.map(v=>v==='X'||v==='O'?v:null);
+    xq={X:m.xq.X.filter(Number.isInteger),O:m.xq.O.filter(Number.isInteger)};
+    xturn=m.xturn==='O'?'O':'X'; xstart=m.xstart==='O'?'O':'X'; xover=!!m.xover;
+    xline=Array.isArray(m.xline)?m.xline.filter(Number.isInteger):[];
+    const sc=m.xscore||{}; xscore={X:+sc.X||0,O:+sc.O||0,D:+sc.D||0};
+    xrender();
+    if(was&&!xover) stopMusic();
+    if(!was&&xover){ const w=xwinner(xb); if(w) playSong(w.p===net.mark?WIN_SONG:LOSE_SONG,0.18); }
+  }
+}
+function onlinePlay(i){
+  if(!net.connected||xturn!==net.mark) return;
+  if(net.role==='host') xplace(i);
+  else { try{ net.conn.send({t:'move',i}); }catch(e){} }
+}
+function onlineAct(t){
+  if(!net.connected){ say('Not connected yet.'); return; }
+  if(net.role==='host'){
+    if(t==='new') xNewRound(false); else { xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); }
+    sendState();
+  } else { try{ net.conn.send({t}); }catch(e){} }
+}
+function onlineRender(){
+  const conn=net.connected, me=net.mark;
+  const name=(p)=>me?(me===p?`You (${p})`:`Friend (${p})`):`Player ${p}`;
+  document.getElementById('lblX').textContent=name('X');
+  document.getElementById('lblO').textContent=name('O');
+  document.getElementById('tokX').classList.toggle('active',conn&&!xover&&xturn==='X'&&me==='X');
+  document.getElementById('tokO').classList.toggle('active',conn&&!xover&&xturn==='O'&&me==='O');
+  const w=xwinner(xb);
+  if(!conn) xStatus.textContent=net.peer?'Waiting for connection…':'Create a room or join with a code';
+  else if(w) xStatus.textContent=w.p===me?'🎉 You win!':'😅 Your friend wins!';
+  else if(xover) xStatus.textContent='🤝 It’s a draw!';
+  else xStatus.textContent=xturn===me?`Your turn (${me})`:`Friend’s turn (${xturn})`;
+}
+createBtn.onclick=()=>createRoom();
+joinBtn.onclick=()=>joinRoom();
+leaveBtn.onclick=()=>leaveRoom();
+joinCode.addEventListener('keydown',e=>{ if(e.key==='Enter') joinRoom(); });
+
+function xwinner(b){
+  for(const l of XW){ const [a,c,d]=l; if(b[a]&&b[a]===b[c]&&b[a]===b[d]) return {p:b[a],line:l}; }
+  return null;
+}
+function xrender(){
+  xgrid.innerHTML='';
+  xb.forEach((v,i)=>{
+    const b=document.createElement('button');
+    const isOld=v && !xover && xq[v].length>=XMAX && xq[v][0]===i;
+    b.className='xcell'+(v?' '+v:'')+(xline.includes(i)?' win':'')+(isOld?' old':'');
+    b.textContent=v||'';
+    b.setAttribute('aria-label','Cell '+(i+1)+(v?' '+v:' empty'));
+    b.dataset.i=i;
+    b.onclick=()=>xplay(i);
+    xgrid.appendChild(b);
+  });
+  const cpu=isCpu();
+  document.getElementById('tokX').classList.toggle('active',!xover&&xturn==='X');
+  document.getElementById('tokO').classList.toggle('active',!xover&&xturn==='O'&&!cpu);
+  document.getElementById('lblX').textContent=cpu?'You (X)':'Player X';
+  document.getElementById('lblO').textContent=cpu?'CPU (O)':'Player O';
+  document.getElementById('scX').textContent=xscore.X;
+  document.getElementById('scO').textContent=xscore.O;
+  document.getElementById('scD').textContent=xscore.D;
+  const w=xwinner(xb);
+  if(w) xStatus.textContent=cpu?(w.p==='X'?'🎉 You win!':'💻 Computer wins!'):`🎉 Player ${w.p} wins!`;
+  else if(xover) xStatus.textContent='🤝 It’s a draw!';
+  else if(cpu) xStatus.textContent=xturn==='X'?'Your turn (X)':'Computer is thinking…';
+  else xStatus.textContent=`Player ${xturn}’s turn`;
+  if(xmode==='online') onlineRender();
+}
+function xplay(i){
+  if(xover||xb[i]) return;
+  if(xmode==='online'){ onlinePlay(i); return; }
+  if(isCpu() && xturn==='O') return;
+  xplace(i);
+}
+function xplace(i){
+  xb[i]=xturn;
+  xq[xturn].push(i);
+  if(xq[xturn].length>XMAX){ xb[xq[xturn].shift()]=null; }
+  const w=xwinner(xb);
+  if(w){
+    xover=true; xline=w.line; xscore[w.p]++;
+    if((isCpu() && w.p==='O')||(xmode==='online' && w.p!==net.mark)) playSong(LOSE_SONG,0.18); else playSong(WIN_SONG,0.18);
+  } else if(xb.every(Boolean)){
+    xover=true; xscore.D++;
+  } else {
+    xturn=xturn==='X'?'O':'X';
+    if(isCpu() && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
+  }
+  xrender();
+  if(xmode==='online' && net.role==='host') sendState();
+}
+function minimax(b,q,turn,depth,alpha,beta){
+  const w=xwinner(b);
+  if(w) return w.p==='O'?100-depth:depth-100;
+  if(depth>=7) return 0;
+  let best=turn==='O'?-Infinity:Infinity;
+  for(let i=0;i<9;i++){
+    if(b[i]) continue;
+    const nb=b.slice(), nq={X:q.X.slice(),O:q.O.slice()};
+    nb[i]=turn; nq[turn].push(i);
+    if(nq[turn].length>XMAX) nb[nq[turn].shift()]=null;
+    const s=minimax(nb,nq,turn==='O'?'X':'O',depth+1,alpha,beta);
+    if(turn==='O'){ best=Math.max(best,s); alpha=Math.max(alpha,best); }
+    else { best=Math.min(best,s); beta=Math.min(beta,best); }
+    if(beta<=alpha) break;
+  }
+  return best;
+}
+function cpuMove(){
+  if(xover) return;
+  const empty=[]; xb.forEach((v,i)=>{if(!v) empty.push(i)});
+  if(!empty.length) return;
+  let move;
+  if(xmode==='easy'){
+    move=empty[Math.floor(Math.random()*empty.length)];
+  } else {
+    let bestScore=-Infinity, bestMoves=[];
+    for(const i of empty){
+      const nb=xb.slice(), nq={X:xq.X.slice(),O:xq.O.slice()};
+      nb[i]='O'; nq.O.push(i);
+      if(nq.O.length>XMAX) nb[nq.O.shift()]=null;
+      const s=minimax(nb,nq,'X',1,-Infinity,Infinity);
+      if(s>bestScore){bestScore=s;bestMoves=[i]} else if(s===bestScore) bestMoves.push(i);
+    }
+    move=bestMoves[Math.floor(Math.random()*bestMoves.length)];
+  }
+  xplace(move);
+}
+function xNewRound(first){
+  clearTimeout(cpuTimer); stopMusic();
+  xb=Array(9).fill(null); xover=false; xline=[]; xq={X:[],O:[]};
+  if(!first) xstart=xstart==='X'?'O':'X';
+  xturn=xstart;
+  xrender();
+  if(isCpu() && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
+}
+document.querySelectorAll('#xoxGame .tab').forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll('#xoxGame .tab').forEach(x=>x.classList.toggle('active',x===btn));
+    if(xmode==='online' && btn.dataset.m==='online') return;
+    if(xmode==='online') leaveRoom();
+    xmode=btn.dataset.m; xscore={X:0,O:0,D:0}; xstart='X';
+    document.getElementById('onlinePanel').classList.toggle('hidden',xmode!=='online');
+    xNewRound(true);
+  };
+});
+document.getElementById('xNew').onclick=()=>{ if(xmode==='online') onlineAct('new'); else xNewRound(false); };
+document.getElementById('xReset').onclick=()=>{ if(xmode==='online') onlineAct('reset'); else {xscore={X:0,O:0,D:0};xstart='X';xNewRound(true)} };
+
+/* Drag and drop (pointer events, works with mouse and touch) */
+let ghost=null, hoverEl=null;
+function cellAt(x,y){ const el=document.elementFromPoint(x,y); return el&&el.closest?el.closest('.xcell'):null; }
+function clearHover(){ if(hoverEl){hoverEl.classList.remove('drop');hoverEl=null;} }
+['tokX','tokO'].forEach(id=>{
+  const t=document.getElementById(id);
+  t.addEventListener('pointerdown',e=>{
+    const p=t.dataset.p;
+    if(xover||xturn!==p||(isCpu()&&p==='O')||(xmode==='online'&&(!net.connected||net.mark!==p))) return;
+    e.preventDefault();
+    ghost=document.createElement('div');
+    ghost.className='drag-ghost'; ghost.textContent=p;
+    ghost.style.color=p==='X'?'var(--accent)':'var(--o)';
+    ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
+    document.body.appendChild(ghost);
+    try{t.setPointerCapture(e.pointerId)}catch(_){}
+  });
+  t.addEventListener('pointermove',e=>{
+    if(!ghost) return;
+    ghost.style.left=e.clientX+'px'; ghost.style.top=e.clientY+'px';
+    const c=cellAt(e.clientX,e.clientY);
+    if(c!==hoverEl){
+      clearHover();
+      if(c && !xb[Number(c.dataset.i)]){ c.classList.add('drop'); hoverEl=c; }
+    }
+  });
+  const end=e=>{
+    if(!ghost) return;
+    const c=cellAt(e.clientX,e.clientY);
+    ghost.remove(); ghost=null; clearHover();
+    if(e.type==='pointerup' && c) xplay(Number(c.dataset.i));
+  };
+  t.addEventListener('pointerup',end);
+  t.addEventListener('pointercancel',end);
+});
+xrender();
+</script>
+</body>
+</html>
