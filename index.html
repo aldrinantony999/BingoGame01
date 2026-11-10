@@ -70,6 +70,8 @@ input[type=text]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10
 #xoxGame .tab{font-size:.85rem;padding:10px 2px}
 label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
 .msg{color:var(--accent);font-size:.85rem;min-height:1.2em;margin-top:6px}
+.sub.turn{font-weight:800;color:var(--accent);font-size:1.05rem}
+#bPlayers{white-space:pre-line;line-height:1.5}
 
 /* XOX */
 .title{text-align:center;font-size:2rem;font-weight:900;margin:6px 0 4px;color:var(--accent);letter-spacing:.1em}
@@ -131,7 +133,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
     </div>
 
     <div class="panel hidden" id="playPanel">
-      <div class="tabs" style="margin-bottom:10px">
+      <div class="tabs" id="modeTabs" style="margin-bottom:10px">
         <button class="tab active" id="modeStrict">Called numbers only</button>
         <button class="tab" id="modeFree">Free cross (any)</button>
       </div>
@@ -142,23 +144,12 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         <button class="btn" id="addBtn">Cross</button>
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="btn" id="micBtn">🎤 Listen for numbers</button>
-        <select id="langSel" aria-label="Speech language">
-          <option value="en-US">English (US)</option>
-          <option value="en-IN">English (India)</option>
-          <option value="hi-IN">Hindi</option>
-          <option value="ta-IN">Tamil</option>
-          <option value="te-IN">Telugu</option>
-        </select>
-      </div>
-      <div class="row" style="margin-top:8px">
         <button class="btn alt" id="randCallBtn">🎲 Call random number</button>
       </div>
-      <div class="hint" id="heard"></div>
       </div>
       <div class="msg" id="msg"></div>
       <div class="hint" id="calledList"></div>
-      <div class="row" style="margin-top:8px">
+      <div class="row" id="clearRow" style="margin-top:8px">
         <button class="btn alt" id="clearMarksBtn">Clear all crosses</button>
       </div>
       <p class="hint" id="playHint"></p>
@@ -179,12 +170,12 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         </div>
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="btn alt hidden" id="bNewGame">New game for everyone</button>
+        <button class="btn hidden" id="bHostBtn">Start game</button>
         <button class="btn alt hidden" id="bLeaveBtn">Leave room</button>
       </div>
       <div class="msg" id="bMsg"></div>
       <div class="hint" id="bPlayers"></div>
-      <p class="hint">The player who creates the room is the host and calls the numbers (type, speak, or tap Call random number). Everyone else joins with the code and sets their own card. Called numbers are crossed automatically, and the first BINGO is announced to the whole room.</p>
+      <p class="hint">Everyone fills all 25 boxes on their own card. The host taps Start game. Players then take turns choosing a number: it is crossed on every card in the room. Only the player whose turn it is can choose. The first to complete 5 lines wins.</p>
     </div>
   </section>
 
@@ -275,7 +266,7 @@ document.getElementById('musicBtn').onclick=e=>{
 
 /* ============ Game switcher ============ */
 function switchGame(g){
-  stopListening(); stopMusic(); clearTimeout(cpuTimer);
+  stopMusic(); clearTimeout(cpuTimer);
   document.getElementById('gBingo').classList.toggle('active',g==='bingo');
   document.getElementById('gXox').classList.toggle('active',g==='xox');
   document.getElementById('bingoGame').classList.toggle('hidden',g!=='bingo');
@@ -291,7 +282,11 @@ const grid=document.getElementById('grid'), banner=document.getElementById('bann
       msg=document.getElementById('msg'), sub=document.getElementById('sub'),
       input=document.getElementById('numInput'), letters=[...document.querySelectorAll('#letters span')];
 let card=Array(25).fill(null), marked=Array(25).fill(false), mode='setup', bingoShown=false;
-let calledNums=[], free=false; // free=false: only called numbers can be crossed
+let calledNums=[], free=false; // solo play: free=false means only called numbers can be crossed
+
+const BR_PREFIX='bingoxox-b-';
+const bnet={peer:null,role:null,code:null,name:'',conn:null,players:[],roster:[],phase:'lobby',order:[],turn:null,
+  winner:null,connected:false,timer:null,claims:[],claimTimer:null,lastReady:null};
 
 const LINES=[];
 for(let i=0;i<5;i++){
@@ -300,12 +295,16 @@ for(let i=0;i<5;i++){
 }
 LINES.push([0,6,12,18,24],[4,8,12,16,20]);
 
+function cardReady(){ return card.every(v=>v!==null); }
+function roomLocked(){ return !!bnet.peer && bnet.phase==='playing'; }
+function syncMarks(){ marked=card.map(v=>v!==null&&calledNums.includes(v)); }
 function nextNumber(){
   for(let n=1;n<=25;n++) if(!card.includes(n)) return n;
   return null;
 }
 function setMode(m){
-  mode=m; msg.textContent=''; if(m!=='play') stopListening();
+  if(m==='setup' && roomLocked()){ msg.textContent='The game has started, so your card is locked.'; return; }
+  mode=m; msg.textContent='';
   document.getElementById('tabSetup').classList.toggle('active',m==='setup');
   document.getElementById('tabPlay').classList.toggle('active',m==='play');
   document.getElementById('setupPanel').classList.toggle('hidden',m!=='setup');
@@ -313,6 +312,7 @@ function setMode(m){
   render();
 }
 function onCell(i){
+  if(roomLocked()){ roomPick(i); return; }
   if(mode==='setup'){
     if(card[i]===null){
       const n=nextNumber();
@@ -332,7 +332,7 @@ function onCell(i){
 function render(){
   grid.innerHTML='';
   const winCells=new Set(); let wins=0;
-  if(mode==='play') LINES.forEach(l=>{ if(l.every(i=>marked[i])){wins++; l.forEach(i=>winCells.add(i));} });
+  if(mode==='play'||roomLocked()) LINES.forEach(l=>{ if(l.every(i=>marked[i])){wins++; l.forEach(i=>winCells.add(i));} });
   card.forEach((v,i)=>{
     const b=document.createElement('button');
     b.className='cell'+(v===null?' empty':'')+(marked[i]?' marked':'')+(winCells.has(i)?' win':'');
@@ -343,7 +343,8 @@ function render(){
   letters.forEach((el,k)=>el.classList.toggle('on',k<wins));
   banner.textContent=wins>=5?'🎉 BINGO!':(wins?`${wins} line${wins>1?'s':''} complete`:'');
   if(bnet.winner && wins<5) banner.textContent='🏆 '+bnet.winner+' got BINGO!';
-  if(wins>=5){ if(!bingoShown){ bingoShown=true; stopListening(); playSong(BINGO_SONG,0.16); roomBingo(); } }
+  else if(bnet.peer && bnet.phase==='over' && !bnet.winner && wins<5) banner.textContent='All 25 numbers called. No winner.';
+  if(wins>=5){ if(!bingoShown){ bingoShown=true; playSong(BINGO_SONG,0.16); roomBingo(); } }
   else { if(bingoShown) stopMusic(); bingoShown=false; }
   if(mode==='setup'){
     const n=nextNumber();
@@ -361,12 +362,12 @@ function addNumber(){
   input.value='';
   const idx=card.indexOf(n);
   if(!calledNums.includes(n)) calledNums.push(n);
-  roomBroadcastCall(n);
   if(idx>-1){ marked[idx]=true; msg.textContent=`Crossed ${n}.`; }
   else msg.textContent=`${n} isn’t on your card yet. Place it in Set numbers.`;
   render(); input.focus();
 }
 function randomFill(){
+  if(roomLocked()) return;
   const pool=Array.from({length:25},(_,i)=>i+1);
   for(let i=24;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
   card=pool; marked=Array(25).fill(false); calledNums=[]; render();
@@ -374,106 +375,48 @@ function randomFill(){
 document.getElementById('tabSetup').onclick=()=>setMode('setup');
 document.getElementById('tabPlay').onclick=()=>setMode('play');
 document.getElementById('randBtn').onclick=randomFill;
-document.getElementById('clearAllBtn').onclick=()=>{card=Array(25).fill(null);marked=Array(25).fill(false);calledNums=[];render()};
+document.getElementById('clearAllBtn').onclick=()=>{ if(roomLocked()) return; card=Array(25).fill(null);marked=Array(25).fill(false);calledNums=[];render() };
 document.getElementById('clearMarksBtn').onclick=()=>{marked=Array(25).fill(false);calledNums=[];msg.textContent='';render()};
 document.getElementById('addBtn').onclick=addNumber;
 document.getElementById('modeStrict').onclick=()=>{free=false;msg.textContent='';render()};
 document.getElementById('modeFree').onclick=()=>{free=true;msg.textContent='';render()};
-
-/* Voice: recognise called numbers from speech */
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-const micBtn=document.getElementById('micBtn'), langSel=document.getElementById('langSel'), heardEl=document.getElementById('heard');
-let rec=null, listening=false;
-const NUMW={zero:0,one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,
-  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30};
-const HOMO=new Set(['to','too','for','ate']);
-function parseNumbers(text){
-  const t=text.toLowerCase().replace(/-/g,' ').replace(/[^a-z0-9\s]/g,' ').trim();
-  if(!t) return [];
-  const toks=t.split(/\s+/), out=[], single=toks.length===1;
-  for(let i=0;i<toks.length;i++){
-    const w=toks[i];
-    if(/^\d+$/.test(w)){ out.push(parseInt(w,10)); continue; }
-    if(w==='twenty' && i+1<toks.length && NUMW[toks[i+1]]>=1 && NUMW[toks[i+1]]<=5 && !HOMO.has(toks[i+1])){
-      out.push(20+NUMW[toks[i+1]]); i++; continue;
-    }
-    if(HOMO.has(w)){ if(single) out.push(NUMW[w]); continue; }
-    if(w in NUMW) out.push(NUMW[w]);
-  }
-  return out.filter(n=>n>=1&&n<=25);
-}
-function callNumber(n){
-  if(!calledNums.includes(n)) calledNums.push(n);
-  roomBroadcastCall(n);
-  const idx=card.indexOf(n);
-  if(idx>-1){ marked[idx]=true; msg.textContent=`Heard ${n}: crossed.`; }
-  else msg.textContent=`Heard ${n}, but it isn’t on your card.`;
+document.getElementById('randCallBtn').onclick=()=>{
+  if(bnet.peer) return;
+  const pool=[]; for(let n=1;n<=25;n++) if(!calledNums.includes(n)) pool.push(n);
+  if(!pool.length){ msg.textContent='All 25 numbers have been called.'; return; }
+  const n=pool[Math.floor(Math.random()*pool.length)];
+  calledNums.push(n);
+  const idx=card.indexOf(n); if(idx>-1) marked[idx]=true;
+  msg.textContent=`Called ${n}`+(idx>-1?': crossed.':'.');
   render();
-}
-function setListeningUI(on){
-  micBtn.classList.toggle('listening',on);
-  micBtn.textContent=on?'⏹ Stop listening':'🎤 Listen for numbers';
-}
-function stopListening(){
-  listening=false; setListeningUI(false);
-  if(rec){ const r=rec; rec=null; r.onend=null; try{r.stop()}catch(e){} }
-}
-function startListening(){
-  if(!SR) return;
-  const r=new SR(); rec=r;
-  r.lang=langSel.value; r.continuous=true; r.interimResults=false;
-  r.onresult=e=>{
-    for(let k=e.resultIndex;k<e.results.length;k++){
-      if(!e.results[k].isFinal) continue;
-      const text=e.results[k][0].transcript;
-      heardEl.textContent='Heard: “'+text.trim()+'”';
-      parseNumbers(text).forEach(callNumber);
-    }
-  };
-  r.onerror=e=>{
-    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
-      stopListening(); heardEl.textContent='Microphone access is blocked. Allow the microphone for this page and try again.';
-    } else if(e.error==='audio-capture'){
-      stopListening(); heardEl.textContent='No microphone found.';
-    } else if(e.error==='network'){
-      stopListening(); heardEl.textContent='Voice recognition needs an internet connection.';
-    }
-  };
-  r.onend=()=>{ if(listening && rec===r){ try{r.start()}catch(e){} } };
-  try{ r.start(); listening=true; setListeningUI(true); heardEl.textContent='Listening… say a number from 1 to 25.'; }
-  catch(e){ heardEl.textContent='Could not start the microphone.'; }
-}
-micBtn.onclick=()=>{ if(listening) stopListening(); else startListening(); };
-langSel.onchange=()=>{ if(listening){ stopListening(); startListening(); } };
-if(!SR){ micBtn.disabled=true; heardEl.textContent='Voice recognition isn’t supported in this browser. Try Chrome, Edge or Safari.'; }
-/* ============ Bingo room (host calls numbers, friends join with a code) ============ */
-const BR_PREFIX='bingoxox-b-';
-const bnet={peer:null,role:null,code:null,name:'',conn:null,players:[],names:[],winner:null,connected:false,timer:null};
+};
+input.addEventListener('keydown',e=>{if(e.key==='Enter')addNumber()});
+
+/* ============ Bingo room: players take turns choosing a number ============ */
 function bmsg(t){ document.getElementById('bMsg').textContent=t; }
 function bReady(){
   if(typeof Peer==='undefined'){ bmsg('Rooms couldn’t load. Check your internet connection and reload.'); return false; }
   return true;
 }
-function bnames(){ return [bnet.name+' (host)'].concat(bnet.players.map(p=>p.name)); }
+function roster(){ return [{n:bnet.name,r:cardReady(),h:true}].concat(bnet.players.map(p=>({n:p.name,r:!!p.ready,h:false}))); }
 function bcast(m){ bnet.players.forEach(p=>{ try{ p.conn.send(m); }catch(e){} }); }
-function roomBroadcastCall(n){ if(bnet.role==='host') bcast({t:'call',n,called:calledNums.slice()}); }
-function bAnnounce(name){
-  if(bnet.winner) return;
-  bnet.winner=name; bcast({t:'winner',name});
-  if(name!==bnet.name) playSong(WIN_SONG,0.18);
+function hostBroadcast(){
+  bcast({t:'state',phase:bnet.phase,roster:roster(),order:bnet.order,turn:bnet.turn,called:calledNums.slice(),winner:bnet.winner});
 }
-function roomBingo(){
-  if(bnet.role==='host') bAnnounce(bnet.name);
-  else if(bnet.role==='guest' && bnet.connected){ try{ bnet.conn.send({t:'bingo'}); }catch(e){} }
+function resetRoomState(){
+  clearTimeout(bnet.timer); clearTimeout(bnet.claimTimer);
+  bnet.claimTimer=null; bnet.claims=[]; bnet.phase='lobby'; bnet.order=[]; bnet.turn=null; bnet.winner=null;
+  bnet.roster=[]; bnet.players=[]; bnet.lastReady=null;
+  calledNums=[]; marked=Array(25).fill(false);
 }
 function bLeave(m){
-  clearTimeout(bnet.timer);
   const peer=bnet.peer, conn=bnet.conn, ps=bnet.players;
-  bnet.peer=null; bnet.conn=null; bnet.role=null; bnet.code=null; bnet.players=[]; bnet.names=[]; bnet.winner=null; bnet.connected=false;
+  bnet.peer=null; bnet.conn=null; bnet.role=null; bnet.code=null; bnet.connected=false;
+  resetRoomState(); stopMusic();
   try{ ps.forEach(p=>p.conn.close()); }catch(e){}
   try{ conn&&conn.close(); }catch(e){}
   try{ peer&&peer.destroy(); }catch(e){}
-  bmsg(typeof m==='string'?m:''); render();
+  bmsg(typeof m==='string'?m:''); msg.textContent=''; render();
 }
 function bError(e){
   let m='Connection problem. Please try again.';
@@ -486,10 +429,11 @@ function bCreate(tries){
   if(!bReady()) return;
   const code=newCode();
   bmsg('Creating room…');
+  resetRoomState(); free=false;
   const peer=new Peer(BR_PREFIX+code);
-  bnet.peer=peer; bnet.role='host'; bnet.code=code; bnet.players=[]; bnet.winner=null; bnet.connected=true;
+  bnet.peer=peer; bnet.role='host'; bnet.code=code; bnet.connected=true;
   bnet.name=document.getElementById('bName').value.trim().slice(0,12)||'Host';
-  peer.on('open',()=>{ if(bnet.peer===peer){ bmsg('Room code: '+code+'. Friends join with this code. You call the numbers.'); render(); } });
+  peer.on('open',()=>{ if(bnet.peer===peer){ bmsg('Room code: '+code+'. Friends join with this code.'); render(); } });
   peer.on('connection',c=>{
     if(bnet.peer!==peer) return;
     c.on('data',m=>bHostData(c,m));
@@ -505,24 +449,21 @@ function bCreate(tries){
 }
 function bHostData(c,m){
   if(!m||typeof m!=='object') return;
-  let p=bnet.players.find(x=>x.conn===c);
+  const p=bnet.players.find(x=>x.conn===c);
   if(m.t==='hello' && !p){
+    if(bnet.phase!=='lobby'){ try{ c.send({t:'busy'}); }catch(e){} setTimeout(()=>{ try{c.close()}catch(e){} },400); return; }
     if(bnet.players.length>=7){ try{ c.send({t:'full'}); }catch(e){} setTimeout(()=>{ try{c.close()}catch(e){} },400); return; }
     let name=String(m.name||'').trim().slice(0,12)||('Player '+(bnet.players.length+1));
     const base=name; let k=2;
     const taken=n=>n===bnet.name||bnet.players.some(x=>x.name===n);
     while(taken(name)) name=base+' '+(k++);
-    p={conn:c,name}; bnet.players.push(p);
-    try{
-      c.send({t:'welcome',name,names:bnames()});
-      c.send({t:'sync',called:calledNums.slice()});
-      if(bnet.winner) c.send({t:'winner',name:bnet.winner});
-    }catch(e){}
-    bcast({t:'players',names:bnames()});
-    bmsg(name+' joined.'); render();
-  } else if(m.t==='bingo' && p){
-    bAnnounce(p.name); render();
-  }
+    bnet.players.push({conn:c,name,ready:false});
+    try{ c.send({t:'welcome',name}); }catch(e){}
+    hostBroadcast(); bmsg(name+' joined.'); render();
+  } else if(!p){ return; }
+  else if(m.t==='ready'){ p.ready=!!m.ready; hostBroadcast(); render(); }
+  else if(m.t==='pick'){ hostPick(p.name,m.n); }
+  else if(m.t==='bingo'){ bClaim(p.name); }
 }
 function bDrop(c){
   if(!bnet.peer||bnet.role!=='host') return;
@@ -530,17 +471,25 @@ function bDrop(c){
   if(i<0) return;
   const name=bnet.players[i].name;
   bnet.players.splice(i,1);
-  bcast({t:'players',names:bnames()});
-  bmsg(name+' left.'); render();
+  const oi=bnet.order.indexOf(name);
+  if(oi>-1){
+    bnet.order.splice(oi,1);
+    if(bnet.turn===name) bnet.turn=bnet.order.length?bnet.order[oi%bnet.order.length]:null;
+  }
+  bmsg(name+' left.');
+  if(bnet.phase==='playing' && bnet.order.length<2){
+    bnet.phase='over'; bnet.turn=null; bnet.winner=null; bmsg(name+' left. Not enough players, so the game ended.');
+  }
+  hostBroadcast(); render();
 }
 function bJoin(){
   if(!bReady()) return;
   const code=document.getElementById('bJoinCode').value.trim().toUpperCase();
   if(code.length!==4){ bmsg('Enter the 4-character room code.'); return; }
-  stopListening();
   bmsg('Connecting…');
+  resetRoomState(); free=false;
   const peer=new Peer();
-  bnet.peer=peer; bnet.role='guest'; bnet.code=code; bnet.winner=null; bnet.names=[]; bnet.connected=false;
+  bnet.peer=peer; bnet.role='guest'; bnet.code=code; bnet.connected=false; bnet.name='';
   peer.on('open',()=>{
     if(bnet.peer!==peer) return;
     const c=peer.connect(BR_PREFIX+code,{reliable:true});
@@ -556,68 +505,126 @@ function bJoin(){
 }
 function bGuestData(m){
   if(!m||typeof m!=='object') return;
-  const okNum=n=>Number.isInteger(n)&&n>=1&&n<=25;
-  switch(m.t){
-    case 'welcome':
-      bnet.connected=true; clearTimeout(bnet.timer);
-      bnet.name=String(m.name||'Player'); bnet.names=Array.isArray(m.names)?m.names.map(String):[];
-      bmsg('Joined as '+bnet.name+'. Set your numbers, then wait for the host to call.');
-      break;
-    case 'players': bnet.names=Array.isArray(m.names)?m.names.map(String):[]; break;
-    case 'sync': {
-      const called=Array.isArray(m.called)?m.called.filter(okNum):[];
-      calledNums=called;
-      called.forEach(n=>{ const i=card.indexOf(n); if(i>-1) marked[i]=true; });
-      break;
-    }
-    case 'call': {
-      const n=m.n; if(!okNum(n)) return;
-      if(!calledNums.includes(n)) calledNums.push(n);
-      const i=card.indexOf(n); if(i>-1) marked[i]=true;
-      msg.textContent=`Host called ${n}`+(i>-1?': crossed.':'.');
-      break;
-    }
-    case 'winner':
-      bnet.winner=String(m.name||'Someone');
-      if(bnet.winner!==bnet.name) playSong(WIN_SONG,0.18);
-      break;
-    case 'reset':
-      marked=Array(25).fill(false); calledNums=[]; bnet.winner=null; msg.textContent='New game started.'; stopMusic();
-      break;
-    case 'full': bLeave('The room is full.'); return;
+  if(m.t==='welcome'){
+    bnet.connected=true; clearTimeout(bnet.timer);
+    bnet.name=String(m.name||'Player'); bnet.lastReady=null;
+    bmsg('Joined as '+bnet.name+'. Fill your card, then wait for the host to start.');
+    render(); return;
   }
+  if(m.t==='busy'){ bLeave('A game is already in progress. Try again when it ends.'); return; }
+  if(m.t==='full'){ bLeave('The room is full.'); return; }
+  if(m.t==='state') applyState(m);
+}
+function applyState(m){
+  const prev=bnet.phase;
+  const okNum=n=>Number.isInteger(n)&&n>=1&&n<=25;
+  bnet.phase=['lobby','playing','over'].includes(m.phase)?m.phase:'lobby';
+  bnet.roster=Array.isArray(m.roster)?m.roster.slice(0,8).map(r=>({n:String((r&&r.n)||''),r:!!(r&&r.r),h:!!(r&&r.h)})):[];
+  bnet.order=Array.isArray(m.order)?m.order.map(String):[];
+  bnet.turn=m.turn?String(m.turn):null;
+  calledNums=Array.isArray(m.called)?m.called.filter(okNum):[];
+  bnet.winner=m.winner?String(m.winner):null;
+  if(bnet.phase==='lobby') marked=Array(25).fill(false); else syncMarks();
+  if(prev!=='playing' && bnet.phase==='playing'){ msg.textContent=''; setMode('play'); }
+  if(prev==='playing' && bnet.phase==='over' && bnet.winner && !bnet.winner.split(' & ').includes(bnet.name)) playSong(WIN_SONG,0.18);
+  if(prev!=='lobby' && bnet.phase==='lobby'){ stopMusic(); msg.textContent=''; }
   render();
 }
-function bNewGame(){
-  marked=Array(25).fill(false); calledNums=[]; bnet.winner=null; msg.textContent='New game started.'; stopMusic();
-  bcast({t:'reset'}); render();
+function bStart(){
+  if(bnet.role!=='host'||bnet.phase!=='lobby') return;
+  const r=roster();
+  if(r.length<2){ bmsg('Wait for at least one friend to join.'); return; }
+  if(!r.every(x=>x.r)){ bmsg('Everyone needs to fill all 25 boxes first.'); return; }
+  bnet.phase='playing'; bnet.order=r.map(x=>x.n); bnet.turn=bnet.order[0]; bnet.winner=null;
+  clearTimeout(bnet.claimTimer); bnet.claimTimer=null; bnet.claims=[];
+  calledNums=[]; marked=Array(25).fill(false); stopMusic();
+  bmsg('Game started!'); msg.textContent='';
+  setMode('play');
+  hostBroadcast();
+}
+function bBackToLobby(){
+  if(bnet.role!=='host') return;
+  clearTimeout(bnet.claimTimer); bnet.claimTimer=null; bnet.claims=[];
+  bnet.phase='lobby'; bnet.order=[]; bnet.turn=null; bnet.winner=null;
+  calledNums=[]; marked=Array(25).fill(false); stopMusic(); msg.textContent='';
+  bmsg('Back in the lobby. Tap Start game when everyone is ready.');
+  hostBroadcast(); render();
+}
+function roomPick(i){
+  const n=card[i];
+  if(n===null||bnet.phase!=='playing') return;
+  if(bnet.turn!==bnet.name){ msg.textContent='Wait for your turn. '+bnet.turn+' is choosing.'; return; }
+  if(calledNums.includes(n)){ msg.textContent=n+' is already crossed. Choose another number.'; return; }
+  msg.textContent='';
+  if(bnet.role==='host') hostPick(bnet.name,n);
+  else { try{ bnet.conn.send({t:'pick',n}); }catch(e){} }
+}
+function hostPick(name,n){
+  if(bnet.phase!=='playing'||bnet.turn!==name||!Number.isInteger(n)||n<1||n>25||calledNums.includes(n)) return;
+  calledNums.push(n);
+  syncMarks();
+  const o=bnet.order, i=o.indexOf(bnet.turn);
+  bnet.turn=o[(i+1)%o.length];
+  hostBroadcast(); render();
+  if(calledNums.length>=25) setTimeout(()=>{
+    if(bnet.phase==='playing' && !bnet.winner){ bnet.phase='over'; bnet.turn=null; hostBroadcast(); render(); }
+  },2000);
+}
+function bClaim(name){
+  if(bnet.role!=='host'||bnet.phase!=='playing') return;
+  if(!bnet.claims.includes(name)) bnet.claims.push(name);
+  if(!bnet.claimTimer) bnet.claimTimer=setTimeout(()=>{
+    bnet.claimTimer=null;
+    if(bnet.phase!=='playing') return;
+    bnet.winner=bnet.claims.join(' & '); bnet.claims=[]; bnet.phase='over'; bnet.turn=null;
+    if(!bnet.winner.split(' & ').includes(bnet.name)) playSong(WIN_SONG,0.18);
+    hostBroadcast(); render();
+  },1200);
+}
+function roomBingo(){
+  if(!bnet.peer||bnet.phase!=='playing') return;
+  if(bnet.role==='host') bClaim(bnet.name);
+  else if(bnet.connected){ try{ bnet.conn.send({t:'bingo'}); }catch(e){} }
 }
 function roomRender(){
-  const inRoom=!!bnet.peer, host=bnet.role==='host', guest=bnet.role==='guest';
-  document.getElementById('bStart').classList.toggle('hidden',inRoom);
-  document.getElementById('bLeaveBtn').classList.toggle('hidden',!inRoom);
-  document.getElementById('bNewGame').classList.toggle('hidden',!host);
-  document.getElementById('callerBox').classList.toggle('hidden',guest);
-  const names=host?bnames():bnet.names;
-  document.getElementById('bPlayers').textContent=(inRoom&&names.length)?'In room ('+names.length+'): '+names.join(', '):'';
-  if(guest) document.getElementById('playHint').textContent='The host calls the numbers and they are crossed for you.';
+  const inR=!!bnet.peer, host=bnet.role==='host', guest=bnet.role==='guest';
+  document.getElementById('bStart').classList.toggle('hidden',inR);
+  document.getElementById('bLeaveBtn').classList.toggle('hidden',!inR);
+  const hb=document.getElementById('bHostBtn');
+  hb.classList.toggle('hidden',!host);
+  hb.textContent=bnet.phase==='lobby'?'Start game':(bnet.phase==='playing'?'End game':'New game');
+  ['callerBox','modeTabs','clearRow'].forEach(id=>document.getElementById(id).classList.toggle('hidden',inR));
+  if(!inR){ sub.classList.remove('turn'); document.getElementById('bPlayers').textContent=''; return; }
+  const ready=cardReady();
+  if(bnet.lastReady!==ready){
+    bnet.lastReady=ready;
+    if(guest&&bnet.connected){ try{ bnet.conn.send({t:'ready',ready}); }catch(e){} }
+    else if(host) hostBroadcast();
+  }
+  const ro=host?roster():bnet.roster;
+  document.getElementById('bPlayers').textContent=ro.map(p=>{
+    let t=(bnet.phase==='playing'&&bnet.turn===p.n?'▶ ':'')+p.n+(p.h?' 👑':'')+(p.n===bnet.name?' (you)':'');
+    if(bnet.phase==='lobby') t+=p.r?' ✓ ready':' … setting up';
+    return t;
+  }).join('\n');
+  let t='';
+  if(guest&&!bnet.connected) t='Connecting to the room…';
+  else if(bnet.phase==='lobby'){
+    if(!ready) t='Fill all 25 boxes in Set numbers to get ready.';
+    else if(host) t=ro.length<2?'Waiting for friends to join…':(ro.every(x=>x.r)?'Everyone is ready. Tap Start game.':'Waiting for everyone to get ready…');
+    else t='Ready ✓ Waiting for the host to start.';
+  } else if(bnet.phase==='playing'){
+    t=bnet.turn===bnet.name?'🎯 Your turn! Tap a number on your card.':'⏳ '+bnet.turn+'’s turn…';
+  } else t=bnet.winner?'🏆 '+bnet.winner+' won!':'Game over. No winner.';
+  sub.textContent=t;
+  sub.classList.toggle('turn',bnet.phase==='playing');
+  document.getElementById('playHint').textContent=bnet.phase==='playing'?'Only the player whose turn it is can choose. The chosen number is crossed on everyone’s card.':'';
 }
 document.getElementById('bCreateBtn').onclick=()=>bCreate();
 document.getElementById('bJoinBtn').onclick=bJoin;
 document.getElementById('bLeaveBtn').onclick=()=>bLeave();
-document.getElementById('bNewGame').onclick=bNewGame;
+document.getElementById('bHostBtn').onclick=()=>{ if(bnet.phase==='lobby') bStart(); else bBackToLobby(); };
 document.getElementById('bJoinCode').addEventListener('keydown',e=>{ if(e.key==='Enter') bJoin(); });
-document.getElementById('randCallBtn').onclick=()=>{
-  if(bnet.role==='guest') return;
-  const pool=[]; for(let n=1;n<=25;n++) if(!calledNums.includes(n)) pool.push(n);
-  if(!pool.length){ msg.textContent='All 25 numbers have been called.'; return; }
-  const n=pool[Math.floor(Math.random()*pool.length)];
-  calledNums.push(n); roomBroadcastCall(n);
-  const idx=card.indexOf(n); if(idx>-1) marked[idx]=true;
-  msg.textContent=`Called ${n}`+(idx>-1?': crossed.':'.');
-  render();
-};
-input.addEventListener('keydown',e=>{if(e.key==='Enter')addNumber()});
 render();
 
 /* ============ XOX ============ */
