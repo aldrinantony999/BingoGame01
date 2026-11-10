@@ -87,7 +87,6 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
 .xcell:active{transform:scale(.95)}
 .xcell.X{color:var(--accent)} .xcell.O{color:var(--o)}
 .xcell.win{background:var(--win);border-color:var(--win);color:#1f2430}
-.xcell.old{opacity:.35}
 .xcell.X,.xcell.O{touch-action:none}
 .xcell.lifting{opacity:.25}
 .xcell.drop{background:var(--win);border-color:var(--win)}
@@ -194,7 +193,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
 
     <div class="tray">
       <div class="token X" id="tokX" data-p="X">X</div>
-      <div class="tray-hint">Drag a mark onto a square, tap a square, or drag your marks on the board to move them</div>
+      <div class="tray-hint">Drag a mark from here onto the board. Once all 3 are placed, drag your marks on the board to move them.</div>
       <div class="token O" id="tokO" data-p="O">O</div>
     </div>
 
@@ -203,7 +202,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         <button class="btn" id="xNew">New round</button>
         <button class="btn alt" id="xReset">Reset scores</button>
       </div>
-      <p class="hint">Each player has only 3 marks on the board. Placing a 4th makes your oldest mark (shown faded) disappear. Or use your turn to drag one of your marks to another empty square. Get three in a row to win.</p>
+      <p class="hint">Each player has 3 marks. Drag a mark from the bottom onto an empty square to place it (tapping a square does nothing). Once all 3 of yours are on the board, use each turn to drag one of your marks to another empty square. Get three in a row to win.</p>
     </div>
   </section>
 </main>
@@ -574,8 +573,10 @@ render();
 const XW=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
 const xgrid=document.getElementById('xgrid'), xStatus=document.getElementById('xStatus');
 let xb=Array(9).fill(null), xturn='X', xstart='X', xover=false, xmode='pvp',
-    xscore={X:0,O:0,D:0}, xline=[], cpuTimer=null, xq={X:[],O:[]};
-const XMAX=3; // each player keeps only 3 marks on the board
+    xscore={X:0,O:0,D:0}, xline=[], cpuTimer=null;
+const XMAX=3; // each player has 3 marks: place them by dragging, then move them by dragging
+function cnt(p){ return xb.filter(v=>v===p).length; }
+function how(p){ return cnt(p)<XMAX?'place a mark':'move a mark'; }
 function isCpu(){ return xmode==='easy'||xmode==='hard'; }
 
 /* ============ Online play (PeerJS: no account or keys needed) ============ */
@@ -664,7 +665,7 @@ function wireConn(c){
 }
 function sendState(){
   if(net.role!=='host'||!net.conn||!net.connected) return;
-  try{ net.conn.send({t:'state',xb,xq,xturn,xstart,xover,xline,xscore}); }catch(e){}
+  try{ net.conn.send({t:'state',xb,xturn,xstart,xover,xline,xscore}); }catch(e){}
 }
 function onNetData(m){
   if(!m||typeof m!=='object') return;
@@ -672,15 +673,14 @@ function onNetData(m){
     if(m.t==='move'){
       const i=m.i, f=m.from;
       if(Number.isInteger(f)){
-        if(Number.isInteger(i)&&i>=0&&i<9&&f>=0&&f<9&&!xover&&xturn==='O'&&xb[f]==='O'&&!xb[i]) xdoMove(f,i); else sendState();
-      } else if(Number.isInteger(i)&&i>=0&&i<9&&!xover&&xturn==='O'&&!xb[i]) xplace(i); else sendState();
+        if(Number.isInteger(i)&&i>=0&&i<9&&f>=0&&f<9&&!xover&&xturn==='O'&&xb[f]==='O'&&!xb[i]&&cnt('O')>=XMAX) xdoMove(f,i); else sendState();
+      } else if(Number.isInteger(i)&&i>=0&&i<9&&!xover&&xturn==='O'&&!xb[i]&&cnt('O')<XMAX) xplace(i); else sendState();
     } else if(m.t==='new'){ xNewRound(false); sendState(); }
     else if(m.t==='reset'){ xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); sendState(); }
   } else if(m.t==='state'){
-    if(!Array.isArray(m.xb)||m.xb.length!==9||!m.xq||!Array.isArray(m.xq.X)||!Array.isArray(m.xq.O)) return;
+    if(!Array.isArray(m.xb)||m.xb.length!==9) return;
     const was=xover;
     xb=m.xb.map(v=>v==='X'||v==='O'?v:null);
-    xq={X:m.xq.X.filter(Number.isInteger),O:m.xq.O.filter(Number.isInteger)};
     xturn=m.xturn==='O'?'O':'X'; xstart=m.xstart==='O'?'O':'X'; xover=!!m.xover;
     xline=Array.isArray(m.xline)?m.xline.filter(Number.isInteger):[];
     const sc=m.xscore||{}; xscore={X:+sc.X||0,O:+sc.O||0,D:+sc.D||0};
@@ -706,13 +706,13 @@ function onlineRender(){
   const name=(p)=>me?(me===p?`You (${p})`:`Friend (${p})`):`Player ${p}`;
   document.getElementById('lblX').textContent=name('X');
   document.getElementById('lblO').textContent=name('O');
-  document.getElementById('tokX').classList.toggle('active',conn&&!xover&&xturn==='X'&&me==='X');
-  document.getElementById('tokO').classList.toggle('active',conn&&!xover&&xturn==='O'&&me==='O');
+  document.getElementById('tokX').classList.toggle('active',conn&&!xover&&xturn==='X'&&me==='X'&&cnt('X')<XMAX);
+  document.getElementById('tokO').classList.toggle('active',conn&&!xover&&xturn==='O'&&me==='O'&&cnt('O')<XMAX);
   const w=xwinner(xb);
   if(!conn) xStatus.textContent=net.peer?'Waiting for connection…':'Create a room or join with a code';
   else if(w) xStatus.textContent=w.p===me?'🎉 You win!':'😅 Your friend wins!';
   else if(xover) xStatus.textContent='🤝 It’s a draw!';
-  else xStatus.textContent=xturn===me?`Your turn (${me})`:`Friend’s turn (${xturn})`;
+  else xStatus.textContent=xturn===me?`Your turn (${me}): ${how(me)}`:`Friend’s turn (${xturn})`;
 }
 createBtn.onclick=()=>createRoom();
 joinBtn.onclick=()=>joinRoom();
@@ -727,18 +727,16 @@ function xrender(){
   xgrid.innerHTML='';
   xb.forEach((v,i)=>{
     const b=document.createElement('button');
-    const isOld=v && !xover && xq[v].length>=XMAX && xq[v][0]===i;
-    b.className='xcell'+(v?' '+v:'')+(xline.includes(i)?' win':'')+(isOld?' old':'');
+    b.className='xcell'+(v?' '+v:'')+(xline.includes(i)?' win':'');
     b.textContent=v||'';
     b.setAttribute('aria-label','Cell '+(i+1)+(v?' '+v:' empty'));
     b.dataset.i=i;
-    b.onclick=()=>xplay(i);
     if(v) b.addEventListener('pointerdown',ev=>startBoardDrag(ev,i));
     xgrid.appendChild(b);
   });
   const cpu=isCpu();
-  document.getElementById('tokX').classList.toggle('active',!xover&&xturn==='X');
-  document.getElementById('tokO').classList.toggle('active',!xover&&xturn==='O'&&!cpu);
+  document.getElementById('tokX').classList.toggle('active',!xover&&xturn==='X'&&cnt('X')<XMAX);
+  document.getElementById('tokO').classList.toggle('active',!xover&&xturn==='O'&&!cpu&&cnt('O')<XMAX);
   document.getElementById('lblX').textContent=cpu?'You (X)':'Player X';
   document.getElementById('lblO').textContent=cpu?'CPU (O)':'Player O';
   document.getElementById('scX').textContent=xscore.X;
@@ -747,31 +745,22 @@ function xrender(){
   const w=xwinner(xb);
   if(w) xStatus.textContent=cpu?(w.p==='X'?'🎉 You win!':'💻 Computer wins!'):`🎉 Player ${w.p} wins!`;
   else if(xover) xStatus.textContent='🤝 It’s a draw!';
-  else if(cpu) xStatus.textContent=xturn==='X'?'Your turn (X)':'Computer is thinking…';
-  else xStatus.textContent=`Player ${xturn}’s turn`;
+  else if(cpu) xStatus.textContent=xturn==='X'?`Your turn (X): ${how('X')}`:'Computer is thinking…';
+  else xStatus.textContent=`Player ${xturn}’s turn: ${how(xturn)}`;
   if(xmode==='online') onlineRender();
 }
-function xplay(i){
+function xplay(i){ // called when a token from the tray is dropped on square i
   if(xover||xb[i]) return;
+  if(cnt(xturn)>=XMAX) return;
   if(xmode==='online'){ onlinePlay(i); return; }
   if(isCpu() && xturn==='O') return;
   xplace(i);
 }
-function xplace(i){
-  xb[i]=xturn;
-  xq[xturn].push(i);
-  if(xq[xturn].length>XMAX){ xb[xq[xturn].shift()]=null; }
-  xfinish();
-}
-function xdoMove(from,to){
-  xb[from]=null; xb[to]=xturn;
-  const q=xq[xturn], k=q.indexOf(from);
-  if(k>-1) q.splice(k,1);
-  q.push(to);
-  xfinish();
-}
+function xplace(i){ xb[i]=xturn; xfinish(); }
+function xdoMove(from,to){ xb[from]=null; xb[to]=xturn; xfinish(); }
 function xmove(from,to){
   if(xover||from===to||xb[to]||xb[from]!==xturn) return;
+  if(cnt(xturn)<XMAX) return; // finish placing all 3 marks first
   if(xmode==='online'){
     if(!net.connected||xturn!==net.mark) return;
     if(net.role!=='host'){ try{ net.conn.send({t:'move',i:to,from}); }catch(e){} return; }
@@ -792,17 +781,29 @@ function xfinish(){
   xrender();
   if(xmode==='online' && net.role==='host') sendState();
 }
-function minimax(b,q,turn,depth,alpha,beta){
+/* Computer: place until it has 3 marks, then move one mark per turn */
+function legal(b,turn){
+  const res=[], empties=[], mine=[];
+  b.forEach((v,i)=>{ if(!v) empties.push(i); else if(v===turn) mine.push(i); });
+  if(mine.length<XMAX) empties.forEach(to=>res.push({from:null,to}));
+  else mine.forEach(from=>empties.forEach(to=>res.push({from,to})));
+  return res;
+}
+function applyMv(b,turn,m){
+  const nb=b.slice();
+  if(m.from!==null) nb[m.from]=null;
+  nb[m.to]=turn;
+  return nb;
+}
+function minimax(b,turn,depth,alpha,beta){
   const w=xwinner(b);
   if(w) return w.p==='O'?100-depth:depth-100;
-  if(depth>=7) return 0;
+  if(depth>=6) return 0;
+  const ms=legal(b,turn);
+  if(!ms.length) return 0;
   let best=turn==='O'?-Infinity:Infinity;
-  for(let i=0;i<9;i++){
-    if(b[i]) continue;
-    const nb=b.slice(), nq={X:q.X.slice(),O:q.O.slice()};
-    nb[i]=turn; nq[turn].push(i);
-    if(nq[turn].length>XMAX) nb[nq[turn].shift()]=null;
-    const s=minimax(nb,nq,turn==='O'?'X':'O',depth+1,alpha,beta);
+  for(const m of ms){
+    const s=minimax(applyMv(b,turn,m),turn==='O'?'X':'O',depth+1,alpha,beta);
     if(turn==='O'){ best=Math.max(best,s); alpha=Math.max(alpha,best); }
     else { best=Math.min(best,s); beta=Math.min(beta,best); }
     if(beta<=alpha) break;
@@ -811,27 +812,24 @@ function minimax(b,q,turn,depth,alpha,beta){
 }
 function cpuMove(){
   if(xover) return;
-  const empty=[]; xb.forEach((v,i)=>{if(!v) empty.push(i)});
-  if(!empty.length) return;
-  let move;
+  const ms=legal(xb,'O');
+  if(!ms.length) return;
+  let m;
   if(xmode==='easy'){
-    move=empty[Math.floor(Math.random()*empty.length)];
+    m=ms[Math.floor(Math.random()*ms.length)];
   } else {
-    let bestScore=-Infinity, bestMoves=[];
-    for(const i of empty){
-      const nb=xb.slice(), nq={X:xq.X.slice(),O:xq.O.slice()};
-      nb[i]='O'; nq.O.push(i);
-      if(nq.O.length>XMAX) nb[nq.O.shift()]=null;
-      const s=minimax(nb,nq,'X',1,-Infinity,Infinity);
-      if(s>bestScore){bestScore=s;bestMoves=[i]} else if(s===bestScore) bestMoves.push(i);
+    let bestScore=-Infinity, best=[];
+    for(const mv of ms){
+      const sc=minimax(applyMv(xb,'O',mv),'X',1,-Infinity,Infinity);
+      if(sc>bestScore){ bestScore=sc; best=[mv]; } else if(sc===bestScore) best.push(mv);
     }
-    move=bestMoves[Math.floor(Math.random()*bestMoves.length)];
+    m=best[Math.floor(Math.random()*best.length)];
   }
-  xplace(move);
+  if(m.from===null) xplace(m.to); else xdoMove(m.from,m.to);
 }
 function xNewRound(first){
   clearTimeout(cpuTimer); stopMusic();
-  xb=Array(9).fill(null); xover=false; xline=[]; xq={X:[],O:[]};
+  xb=Array(9).fill(null); xover=false; xline=[];
   if(!first) xstart=xstart==='X'?'O':'X';
   xturn=xstart;
   xrender();
@@ -858,7 +856,7 @@ function clearHover(){ if(hoverEl){hoverEl.classList.remove('drop');hoverEl=null
   const t=document.getElementById(id);
   t.addEventListener('pointerdown',e=>{
     const p=t.dataset.p;
-    if(xover||xturn!==p||(isCpu()&&p==='O')||(xmode==='online'&&(!net.connected||net.mark!==p))) return;
+    if(xover||xturn!==p||cnt(p)>=XMAX||(isCpu()&&p==='O')||(xmode==='online'&&(!net.connected||net.mark!==p))) return;
     e.preventDefault();
     ghost=document.createElement('div');
     ghost.className='drag-ghost'; ghost.textContent=p;
@@ -888,7 +886,7 @@ function clearHover(){ if(hoverEl){hoverEl.classList.remove('drop');hoverEl=null
 
 /* Drag one of your marks already on the board to another empty square */
 function canDrag(p){
-  if(xover||xturn!==p) return false;
+  if(xover||xturn!==p||cnt(p)<XMAX) return false;
   if(xmode==='online') return net.connected && net.mark===p;
   if(isCpu()) return p==='X';
   return true;
