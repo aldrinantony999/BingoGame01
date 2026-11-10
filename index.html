@@ -114,11 +114,6 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
     <div class="letters" id="letters"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
     <div class="sub" id="sub"></div>
 
-    <div class="tabs">
-      <button class="tab active" id="tabSetup">1. Set numbers</button>
-      <button class="tab" id="tabPlay">2. Play</button>
-    </div>
-
     <div class="card">
       <div class="grid" id="grid"></div>
       <div class="banner" id="banner"></div>
@@ -129,29 +124,12 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
         <button class="btn" id="randBtn">Fill randomly</button>
         <button class="btn alt" id="clearAllBtn">Clear all boxes</button>
       </div>
-      <p class="hint">Tap an empty box to place the next number (1, 2, 3…). Tap a filled box to clear it; that number becomes the next one to place.</p>
+      <p class="hint">Tap an empty box to place the next number (1, 2, 3…). Tap a filled box to clear it; that number becomes the next one to place. When all 25 boxes are filled, create or join a room to play.</p>
     </div>
 
-    <div class="panel hidden" id="playPanel">
-      <div class="tabs" id="modeTabs" style="margin-bottom:10px">
-        <button class="tab active" id="modeStrict">Called numbers only</button>
-        <button class="tab" id="modeFree">Free cross (any)</button>
-      </div>
-      <div id="callerBox">
-      <label for="numInput">Called number (1–25)</label>
-      <div class="row">
-        <input id="numInput" type="number" inputmode="numeric" min="1" max="25" placeholder="e.g. 17">
-        <button class="btn" id="addBtn">Cross</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn alt" id="randCallBtn">🎲 Call random number</button>
-      </div>
-      </div>
+    <div class="panel hidden" id="infoPanel">
       <div class="msg" id="msg"></div>
       <div class="hint" id="calledList"></div>
-      <div class="row" id="clearRow" style="margin-top:8px">
-        <button class="btn alt" id="clearMarksBtn">Clear all crosses</button>
-      </div>
       <p class="hint" id="playHint"></p>
     </div>
 
@@ -175,7 +153,7 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
       </div>
       <div class="msg" id="bMsg"></div>
       <div class="hint" id="bPlayers"></div>
-      <p class="hint">Everyone fills all 25 boxes on their own card. The host taps Start game. Players then take turns choosing a number: it is crossed on every card in the room. Only the player whose turn it is can choose. The first to complete 5 lines wins.</p>
+      <p class="hint">Everyone fills all 25 boxes on their own card first. The host taps Start game. Players then take turns choosing a number: it is crossed on every card in the room. Only the player whose turn it is can choose. The first to complete 5 lines wins.</p>
     </div>
   </section>
 
@@ -277,12 +255,12 @@ function switchGame(g){
 document.getElementById('gBingo').onclick=()=>switchGame('bingo');
 document.getElementById('gXox').onclick=()=>switchGame('xox');
 
-/* ============ BINGO ============ */
+/* ============ BINGO (room play: players take turns choosing a number) ============ */
 const grid=document.getElementById('grid'), banner=document.getElementById('banner'),
       msg=document.getElementById('msg'), sub=document.getElementById('sub'),
-      input=document.getElementById('numInput'), letters=[...document.querySelectorAll('#letters span')];
-let card=Array(25).fill(null), marked=Array(25).fill(false), mode='setup', bingoShown=false;
-let calledNums=[], free=false; // solo play: free=false means only called numbers can be crossed
+      letters=[...document.querySelectorAll('#letters span')];
+let card=Array(25).fill(null), marked=Array(25).fill(false), bingoShown=false;
+let calledNums=[];
 
 const BR_PREFIX='bingoxox-b-';
 const bnet={peer:null,role:null,code:null,name:'',conn:null,players:[],roster:[],phase:'lobby',order:[],turn:null,
@@ -297,42 +275,25 @@ LINES.push([0,6,12,18,24],[4,8,12,16,20]);
 
 function cardReady(){ return card.every(v=>v!==null); }
 function roomLocked(){ return !!bnet.peer && bnet.phase==='playing'; }
+function showMarks(){ return !!bnet.peer && bnet.phase!=='lobby'; }
 function syncMarks(){ marked=card.map(v=>v!==null&&calledNums.includes(v)); }
 function nextNumber(){
   for(let n=1;n<=25;n++) if(!card.includes(n)) return n;
   return null;
 }
-function setMode(m){
-  if(m==='setup' && roomLocked()){ msg.textContent='The game has started, so your card is locked.'; return; }
-  mode=m; msg.textContent='';
-  document.getElementById('tabSetup').classList.toggle('active',m==='setup');
-  document.getElementById('tabPlay').classList.toggle('active',m==='play');
-  document.getElementById('setupPanel').classList.toggle('hidden',m!=='setup');
-  document.getElementById('playPanel').classList.toggle('hidden',m!=='play');
-  render();
-}
 function onCell(i){
   if(roomLocked()){ roomPick(i); return; }
-  if(mode==='setup'){
-    if(card[i]===null){
-      const n=nextNumber();
-      if(n!==null) card[i]=n;
-    } else { card[i]=null; marked[i]=false; }
-  } else {
-    if(card[i]===null) return;
-    if(!free && !calledNums.includes(card[i])){
-      msg.textContent=`Only called numbers can be crossed. Call ${card[i]} first, or switch to Free cross.`;
-      return;
-    }
-    msg.textContent='';
-    marked[i]=!marked[i];
-  }
+  if(bnet.peer && bnet.phase!=='lobby') return; // game over: card is locked until the next game
+  if(card[i]===null){
+    const n=nextNumber();
+    if(n!==null) card[i]=n;
+  } else card[i]=null;
   render();
 }
 function render(){
   grid.innerHTML='';
   const winCells=new Set(); let wins=0;
-  if(mode==='play'||roomLocked()) LINES.forEach(l=>{ if(l.every(i=>marked[i])){wins++; l.forEach(i=>winCells.add(i));} });
+  if(showMarks()) LINES.forEach(l=>{ if(l.every(i=>marked[i])){wins++; l.forEach(i=>winCells.add(i));} });
   card.forEach((v,i)=>{
     const b=document.createElement('button');
     b.className='cell'+(v===null?' empty':'')+(marked[i]?' marked':'')+(winCells.has(i)?' win':'');
@@ -346,51 +307,19 @@ function render(){
   else if(bnet.peer && bnet.phase==='over' && !bnet.winner && wins<5) banner.textContent='All 25 numbers called. No winner.';
   if(wins>=5){ if(!bingoShown){ bingoShown=true; playSong(BINGO_SONG,0.16); roomBingo(); } }
   else { if(bingoShown) stopMusic(); bingoShown=false; }
-  if(mode==='setup'){
-    const n=nextNumber();
-    sub.textContent=n===null?'All 25 numbers placed. Go to Play!':`Next number to place: ${n}`;
-  } else sub.textContent=free?'Free cross: tap any numbers to make bingo faster. Complete 5 lines to win.':'Cross only the numbers that are called. Complete 5 lines to win.';
-  document.getElementById('calledList').textContent=calledNums.length?'Called: '+calledNums.join(', '):'';
-  document.getElementById('playHint').textContent=free?'Tap any number on the card to cross it. Tap again to undo.':'Type each called number and press Cross. You can only tap numbers that have been called.';
-  document.getElementById('modeStrict').classList.toggle('active',!free);
-  document.getElementById('modeFree').classList.toggle('active',free);
+  const n=nextNumber();
+  sub.textContent=n===null?'All 25 numbers placed. Create or join a room to play!':`Next number to place: ${n}`;
+  document.getElementById('calledList').textContent=calledNums.length?'Chosen numbers: '+calledNums.join(', '):'';
   roomRender();
 }
-function addNumber(){
-  const n=parseInt(input.value,10);
-  if(!(n>=1&&n<=25)){ msg.textContent='Please enter a number from 1 to 25.'; return; }
-  input.value='';
-  const idx=card.indexOf(n);
-  if(!calledNums.includes(n)) calledNums.push(n);
-  if(idx>-1){ marked[idx]=true; msg.textContent=`Crossed ${n}.`; }
-  else msg.textContent=`${n} isn’t on your card yet. Place it in Set numbers.`;
-  render(); input.focus();
-}
 function randomFill(){
-  if(roomLocked()) return;
+  if(bnet.peer && bnet.phase!=='lobby') return;
   const pool=Array.from({length:25},(_,i)=>i+1);
   for(let i=24;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
-  card=pool; marked=Array(25).fill(false); calledNums=[]; render();
+  card=pool; render();
 }
-document.getElementById('tabSetup').onclick=()=>setMode('setup');
-document.getElementById('tabPlay').onclick=()=>setMode('play');
 document.getElementById('randBtn').onclick=randomFill;
-document.getElementById('clearAllBtn').onclick=()=>{ if(roomLocked()) return; card=Array(25).fill(null);marked=Array(25).fill(false);calledNums=[];render() };
-document.getElementById('clearMarksBtn').onclick=()=>{marked=Array(25).fill(false);calledNums=[];msg.textContent='';render()};
-document.getElementById('addBtn').onclick=addNumber;
-document.getElementById('modeStrict').onclick=()=>{free=false;msg.textContent='';render()};
-document.getElementById('modeFree').onclick=()=>{free=true;msg.textContent='';render()};
-document.getElementById('randCallBtn').onclick=()=>{
-  if(bnet.peer) return;
-  const pool=[]; for(let n=1;n<=25;n++) if(!calledNums.includes(n)) pool.push(n);
-  if(!pool.length){ msg.textContent='All 25 numbers have been called.'; return; }
-  const n=pool[Math.floor(Math.random()*pool.length)];
-  calledNums.push(n);
-  const idx=card.indexOf(n); if(idx>-1) marked[idx]=true;
-  msg.textContent=`Called ${n}`+(idx>-1?': crossed.':'.');
-  render();
-};
-input.addEventListener('keydown',e=>{if(e.key==='Enter')addNumber()});
+document.getElementById('clearAllBtn').onclick=()=>{ if(bnet.peer && bnet.phase!=='lobby') return; card=Array(25).fill(null); render(); };
 
 /* ============ Bingo room: players take turns choosing a number ============ */
 function bmsg(t){ document.getElementById('bMsg').textContent=t; }
@@ -429,7 +358,7 @@ function bCreate(tries){
   if(!bReady()) return;
   const code=newCode();
   bmsg('Creating room…');
-  resetRoomState(); free=false;
+  resetRoomState();
   const peer=new Peer(BR_PREFIX+code);
   bnet.peer=peer; bnet.role='host'; bnet.code=code; bnet.connected=true;
   bnet.name=document.getElementById('bName').value.trim().slice(0,12)||'Host';
@@ -487,7 +416,7 @@ function bJoin(){
   const code=document.getElementById('bJoinCode').value.trim().toUpperCase();
   if(code.length!==4){ bmsg('Enter the 4-character room code.'); return; }
   bmsg('Connecting…');
-  resetRoomState(); free=false;
+  resetRoomState();
   const peer=new Peer();
   bnet.peer=peer; bnet.role='guest'; bnet.code=code; bnet.connected=false; bnet.name='';
   peer.on('open',()=>{
@@ -525,7 +454,7 @@ function applyState(m){
   calledNums=Array.isArray(m.called)?m.called.filter(okNum):[];
   bnet.winner=m.winner?String(m.winner):null;
   if(bnet.phase==='lobby') marked=Array(25).fill(false); else syncMarks();
-  if(prev!=='playing' && bnet.phase==='playing'){ msg.textContent=''; setMode('play'); }
+  if(prev!=='playing' && bnet.phase==='playing'){ msg.textContent=''; }
   if(prev==='playing' && bnet.phase==='over' && bnet.winner && !bnet.winner.split(' & ').includes(bnet.name)) playSong(WIN_SONG,0.18);
   if(prev!=='lobby' && bnet.phase==='lobby'){ stopMusic(); msg.textContent=''; }
   render();
@@ -539,8 +468,7 @@ function bStart(){
   clearTimeout(bnet.claimTimer); bnet.claimTimer=null; bnet.claims=[];
   calledNums=[]; marked=Array(25).fill(false); stopMusic();
   bmsg('Game started!'); msg.textContent='';
-  setMode('play');
-  hostBroadcast();
+  hostBroadcast(); render();
 }
 function bBackToLobby(){
   if(bnet.role!=='host') return;
@@ -593,7 +521,8 @@ function roomRender(){
   const hb=document.getElementById('bHostBtn');
   hb.classList.toggle('hidden',!host);
   hb.textContent=bnet.phase==='lobby'?'Start game':(bnet.phase==='playing'?'End game':'New game');
-  ['callerBox','modeTabs','clearRow'].forEach(id=>document.getElementById(id).classList.toggle('hidden',inR));
+  document.getElementById('infoPanel').classList.toggle('hidden',!inR);
+  document.getElementById('setupPanel').classList.toggle('hidden',inR && bnet.phase!=='lobby');
   if(!inR){ sub.classList.remove('turn'); document.getElementById('bPlayers').textContent=''; return; }
   const ready=cardReady();
   if(bnet.lastReady!==ready){
@@ -610,7 +539,7 @@ function roomRender(){
   let t='';
   if(guest&&!bnet.connected) t='Connecting to the room…';
   else if(bnet.phase==='lobby'){
-    if(!ready) t='Fill all 25 boxes in Set numbers to get ready.';
+    if(!ready) t='Fill all 25 boxes on your card to get ready.';
     else if(host) t=ro.length<2?'Waiting for friends to join…':(ro.every(x=>x.r)?'Everyone is ready. Tap Start game.':'Waiting for everyone to get ready…');
     else t='Ready ✓ Waiting for the host to start.';
   } else if(bnet.phase==='playing'){
