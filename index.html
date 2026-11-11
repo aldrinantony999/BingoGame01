@@ -20,86 +20,105 @@
     --accent:#f76707; --cell:#2c2f3a; --cell-border:#5c4326; --mark:#37b24d; --off:#454a58; --o:#4dabf7;
   }
 }
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;min-height:100%;background:var(--bg);color:var(--text);
+html{height:100%;height:100dvh;overflow:hidden}
+body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;justify-content:center}
-main{width:100%;max-width:460px;padding:16px}
+main{width:100%;max-width:480px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:6px 10px;
+  overflow-x:hidden;overflow-y:auto}
 .hidden{display:none !important}
+.game{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
 
-/* game switcher */
-.games{display:flex;gap:8px;margin-bottom:12px}
-.gamebtn{flex:1;padding:12px 8px;border:2px solid var(--cell-border);background:var(--surface);color:var(--text);
-  border-radius:12px;font-weight:800;font-size:1rem;cursor:pointer;font-family:inherit}
+/* top switcher */
+.games{display:flex;gap:6px;flex:none}
+.gamebtn{flex:1;padding:8px 6px;border:2px solid var(--cell-border);background:var(--surface);color:var(--text);
+  border-radius:12px;font-weight:800;font-size:.95rem;cursor:pointer;font-family:inherit}
 .gamebtn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
-.iconbtn{flex:0 0 auto;width:48px;padding:0;border:2px solid var(--cell-border);background:var(--surface);
-  border-radius:12px;font-size:1.3rem;cursor:pointer}
+.iconbtn{flex:0 0 auto;width:44px;padding:0;border:2px solid var(--cell-border);background:var(--surface);
+  border-radius:12px;font-size:1.2rem;cursor:pointer}
 
-.letters{display:flex;justify-content:center;gap:10px;margin:6px 0 4px}
-.letters span{font-size:2rem;font-weight:900;color:var(--off);transition:color .2s,transform .2s}
-.letters span.on{color:var(--accent);transform:scale(1.15)}
-.sub{text-align:center;color:var(--muted);font-size:.95rem;margin-bottom:12px;min-height:1.3em}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
-.tab{flex:1;padding:10px 6px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
-  border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;font-family:inherit}
-.tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
-.card{background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-.cell{aspect-ratio:1;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
-  border-radius:10px;font-size:1.5rem;font-weight:700;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;position:relative;user-select:none;-webkit-user-select:none;padding:0;font-family:inherit;
-  transition:transform .1s;-webkit-tap-highlight-color:transparent}
-.cell:active{transform:scale(.94)}
-.cell.empty{border-style:dashed;color:var(--muted);font-size:1.2rem}
-.cell.marked{background:var(--mark);border-color:var(--mark);color:var(--mark-text)}
-.cell.marked::after{content:"✕";position:absolute;font-size:2.6rem;opacity:.35;font-weight:400}
-.cell.win{background:var(--win);border-color:var(--win);color:#1f2430}
-.banner{text-align:center;font-weight:800;font-size:1.2rem;margin:12px 0 0;min-height:1.5em;color:var(--win)}
-.panel{margin-top:14px;background:var(--surface);border-radius:16px;padding:12px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+/* shared pieces */
+.sub{text-align:center;color:var(--muted);font-size:.9rem;margin:0;min-height:1.2em;flex:none}
+.sub.turn{font-weight:800;color:var(--accent);font-size:.95rem}
+.banner{text-align:center;font-weight:800;font-size:1rem;margin:0;min-height:1.2em;color:var(--win);flex:none}
+.msg{color:var(--accent);font-size:.8rem;text-align:center;min-height:1.1em;margin:0}
+.hint{color:var(--muted);font-size:.82rem;margin:8px 0 0}
+.boardwrap{flex:1;min-height:130px;container-type:size;display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border-radius:14px;padding:8px;box-shadow:0 2px 10px rgba(0,0,0,.12);
+  box-sizing:border-box;width:min(100%,60vh);aspect-ratio:1}
+@supports (width:1cqw){
+  .card{width:min(100cqw,100cqh);height:min(100cqw,100cqh);aspect-ratio:auto;container-type:size}
+}
+.bar{display:flex;gap:6px;align-items:center;flex:none}
+.bar .btn{flex:1;min-width:0;padding:10px 6px;font-size:.88rem;white-space:nowrap}
+#setupPanel{display:contents}
 .row{display:flex;gap:8px;flex-wrap:wrap}
-input[type=number]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10px;
-  border:2px solid var(--cell-border);background:var(--cell);color:var(--text)}
 button.btn{padding:12px 16px;border:0;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
   background:var(--accent);color:var(--accent-text);font-family:inherit}
 button.btn.alt{background:var(--cell);color:var(--text);border:2px solid var(--cell-border)}
-.hint{color:var(--muted);font-size:.82rem;margin:8px 0 0}
-select{padding:12px;border-radius:10px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);font-size:1rem;font-family:inherit}
-.btn.listening{background:#e03131;color:#fff;animation:pulse 1.2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+select{padding:8px 4px;border-radius:10px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);font-size:.85rem;font-family:inherit}
 input[type=text]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10px;border:2px solid var(--cell-border);
   background:var(--cell);color:var(--text);text-transform:uppercase;letter-spacing:.2em;text-align:center}
-#xoxGame .tab{font-size:.85rem;padding:10px 2px}
-label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
-.msg{color:var(--accent);font-size:.85rem;min-height:1.2em;margin-top:6px}
-.sub.turn{font-weight:800;color:var(--accent);font-size:1.05rem}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);margin:0}
+.tchk{display:flex;align-items:center;gap:4px;font-weight:700;font-size:.85rem;margin:0;flex:none}
+
+/* Bingo */
+.letters{display:flex;justify-content:center;gap:8px;margin:0;flex:none}
+.letters span{font-size:1.35rem;font-weight:900;color:var(--off);transition:color .2s,transform .2s}
+.letters span.on{color:var(--accent);transform:scale(1.15)}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:5px;width:100%;height:100%}
+.cell{min-width:0;min-height:0;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
+  border-radius:10px;font-size:1.3rem;font-weight:700;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;position:relative;user-select:none;-webkit-user-select:none;padding:0;font-family:inherit;
+  transition:transform .1s;-webkit-tap-highlight-color:transparent}
+@supports (width:1cqw){ .cell{font-size:clamp(.9rem,7.5cqw,1.8rem)} }
+.cell:active{transform:scale(.94)}
+.cell.empty{border-style:dashed;color:var(--muted)}
+.cell.marked{background:var(--mark);border-color:var(--mark);color:var(--mark-text)}
+.cell.marked::after{content:"✕";position:absolute;font-size:2.2em;opacity:.35;font-weight:400}
+.cell.win{background:var(--win);border-color:var(--win);color:#1f2430}
 #bPlayers{white-space:pre-line;line-height:1.5}
 
 /* XOX */
-.title{text-align:center;font-size:2rem;font-weight:900;margin:6px 0 4px;color:var(--accent);letter-spacing:.1em}
-.score{display:flex;gap:8px;margin-bottom:12px}
-.score div{flex:1;text-align:center;background:var(--surface);border-radius:12px;padding:8px 4px;
-  box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:.8rem;color:var(--muted)}
-.score b{display:block;font-size:1.6rem;color:var(--text)}
+.tabs{display:flex;gap:5px;margin:0;flex:none}
+.tab{flex:1;min-width:0;padding:8px 2px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
+  border-radius:10px;font-weight:700;font-size:.82rem;white-space:nowrap;cursor:pointer;font-family:inherit}
+.tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.score{display:flex;gap:6px;margin:0;flex:none}
+.score div{flex:1;min-width:0;text-align:center;background:var(--surface);border-radius:10px;padding:4px;
+  box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score b{display:inline;font-size:1.05rem;color:var(--text);margin-left:4px}
 .score .sx b{color:var(--accent)} .score .so b{color:var(--o)}
-.xgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.xcell{aspect-ratio:1;border:2px solid var(--cell-border);background:var(--cell);border-radius:12px;
-  font-size:3.4rem;font-weight:900;cursor:pointer;font-family:inherit;padding:0;
+.xgrid{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:6px;width:100%;height:100%}
+.xcell{min-width:0;min-height:0;border:2px solid var(--cell-border);background:var(--cell);border-radius:12px;
+  font-size:3rem;font-weight:900;cursor:default;font-family:inherit;padding:0;
   display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
-.xcell:active{transform:scale(.95)}
+@supports (width:1cqw){ .xcell{font-size:clamp(2rem,24cqw,4.5rem)} }
 .xcell.X{color:var(--accent)} .xcell.O{color:var(--o)}
 .xcell.win{background:var(--win);border-color:var(--win);color:#1f2430}
-.xcell.X,.xcell.O{touch-action:none}
+.xcell.X,.xcell.O{touch-action:none;cursor:grab}
 .xcell.lifting{opacity:.25}
 .xcell.drop{background:var(--win);border-color:var(--win)}
-.tray{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
-.tray-hint{flex:1;text-align:center;color:var(--muted);font-size:.8rem}
-.token{width:64px;height:64px;border-radius:14px;border:2px solid var(--cell-border);background:var(--surface);
-  font-size:2.4rem;font-weight:900;display:flex;align-items:center;justify-content:center;opacity:.35;
-  touch-action:none;user-select:none;-webkit-user-select:none;cursor:default;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.tray{display:flex;align-items:center;justify-content:space-between;gap:8px;flex:none}
+.trayMid{flex:1;min-width:0;text-align:center}
+.tray-hint{color:var(--muted);font-size:.72rem}
+.timer{font-weight:800;font-size:1.15rem;color:var(--muted);margin:0}
+.timer.low{color:#e03131}
+.note{font-size:.75rem;color:var(--accent);min-height:1em;margin:0}
+.token{width:54px;height:54px;border-radius:14px;border:2px solid var(--cell-border);background:var(--surface);
+  font-size:2rem;font-weight:900;display:flex;align-items:center;justify-content:center;opacity:.35;
+  touch-action:none;user-select:none;-webkit-user-select:none;cursor:default;box-shadow:0 2px 10px rgba(0,0,0,.12);flex:none}
 .token.X{color:var(--accent)} .token.O{color:var(--o)}
 .token.active{opacity:1;cursor:grab;box-shadow:0 0 0 3px var(--win)}
 .drag-ghost{position:fixed;z-index:1000;pointer-events:none;width:64px;height:64px;margin:-32px 0 0 -32px;
   border-radius:14px;background:var(--surface);border:2px solid var(--win);font-size:2.6rem;font-weight:900;
   display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(0,0,0,.3)}
+
+/* pop-up sheets (room / online controls) */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheetBox{width:100%;max-width:480px;max-height:88vh;max-height:88dvh;overflow:auto;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.05rem}
+.x{border:0;background:var(--cell);color:var(--text);width:36px;height:36px;border-radius:10px;font-size:1.1rem;cursor:pointer}
 </style>
 </head>
 <body>
@@ -111,101 +130,105 @@ label{font-weight:700;font-size:.9rem;display:block;margin-bottom:8px}
   </div>
 
   <!-- ================= BINGO ================= -->
-  <section id="bingoGame">
+  <section id="bingoGame" class="game">
     <div class="letters" id="letters"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
     <div class="sub" id="sub"></div>
-
-    <div class="card">
-      <div class="grid" id="grid"></div>
-      <div class="banner" id="banner"></div>
-    </div>
-
-    <div class="panel" id="setupPanel">
-      <div class="row">
+    <div class="boardwrap"><div class="card"><div class="grid" id="grid"></div></div></div>
+    <div class="banner" id="banner"></div>
+    <div class="msg" id="msg"></div>
+    <div class="bar">
+      <div id="setupPanel">
         <button class="btn" id="randBtn">Fill randomly</button>
-        <button class="btn alt" id="clearAllBtn">Clear all boxes</button>
+        <button class="btn alt" id="clearAllBtn">Clear</button>
       </div>
-      <p class="hint">Tap an empty box to place the next number (1, 2, 3…). Tap a filled box to clear it; that number becomes the next one to place. When all 25 boxes are filled, create or join a room to play.</p>
-    </div>
-
-    <div class="panel hidden" id="infoPanel">
-      <div class="msg" id="msg"></div>
-      <div class="hint" id="calledList"></div>
-      <p class="hint" id="playHint"></p>
-    </div>
-
-    <div class="panel" id="bRoomPanel">
-      <label>Play with friends (room)</label>
-      <div id="bStart">
-        <div class="row">
-          <input id="bName" type="text" maxlength="12" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" style="text-transform:none;letter-spacing:normal;text-align:left">
-        </div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn" id="bCreateBtn">Create room</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <input id="bJoinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
-          <button class="btn alt" id="bJoinBtn">Join</button>
-        </div>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn hidden" id="bHostBtn">Start game</button>
-        <button class="btn alt hidden" id="bLeaveBtn">Leave room</button>
-      </div>
-      <div class="msg" id="bMsg"></div>
-      <div class="hint" id="bPlayers"></div>
-      <p class="hint">Everyone fills all 25 boxes on their own card first. The host taps Start game. Players then take turns choosing a number: it is crossed on every card in the room. Only the player whose turn it is can choose. The first to complete 5 lines wins.</p>
+      <button class="btn hidden" id="bHostBtn">Start game</button>
+      <button class="btn alt" id="bRoomBtn">👥 Room</button>
     </div>
   </section>
 
   <!-- ================= XOX ================= -->
-  <section id="xoxGame" class="hidden">
-    <div class="title">XOX</div>
+  <section id="xoxGame" class="game hidden">
     <div class="sub" id="xStatus"></div>
-
     <div class="tabs">
       <button class="tab active" data-m="pvp">2 Players</button>
       <button class="tab" data-m="easy">CPU Easy</button>
       <button class="tab" data-m="hard">CPU Hard</button>
       <button class="tab" data-m="online">🌐 Online</button>
     </div>
-
-    <div class="panel hidden" id="onlinePanel" style="margin:0 0 12px">
-      <div class="row">
-        <button class="btn" id="createBtn">Create room</button>
-        <button class="btn alt hidden" id="leaveBtn">Leave room</button>
-      </div>
-      <div class="row" id="joinRow" style="margin-top:8px">
-        <input id="joinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
-        <button class="btn alt" id="joinBtn">Join</button>
-      </div>
-      <div class="msg" id="onlineMsg"></div>
-      <p class="hint">One player taps Create room and shares the 4-letter code. The other types it and taps Join. The host plays X.</p>
-    </div>
-
     <div class="score">
       <div class="sx"><span id="lblX">Player X</span><b id="scX">0</b></div>
       <div><span>Draws</span><b id="scD">0</b></div>
       <div class="so"><span id="lblO">Player O</span><b id="scO">0</b></div>
     </div>
-
-    <div class="card"><div class="xgrid" id="xgrid"></div></div>
-
+    <div class="boardwrap"><div class="card"><div class="xgrid" id="xgrid"></div></div></div>
     <div class="tray">
       <div class="token X" id="tokX" data-p="X">X</div>
-      <div class="tray-hint">Drag a mark from here onto the board. Once all 3 are placed, drag your marks on the board to move them.</div>
+      <div class="trayMid">
+        <div class="tray-hint">Drag a mark onto the board, then move your marks</div>
+        <div class="timer hidden" id="xTimer"></div>
+        <div class="note" id="xNote"></div>
+      </div>
       <div class="token O" id="tokO" data-p="O">O</div>
     </div>
-
-    <div class="panel">
-      <div class="row">
-        <button class="btn" id="xNew">New round</button>
-        <button class="btn alt" id="xReset">Reset scores</button>
-      </div>
-      <p class="hint">Each player has 3 marks. Drag a mark from the bottom onto an empty square to place it (tapping a square does nothing). Once all 3 of yours are on the board, use each turn to drag one of your marks to another empty square. Get three in a row to win.</p>
+    <div class="bar">
+      <button class="btn" id="xNew">New round</button>
+      <button class="btn alt" id="xReset">Reset scores</button>
+      <label class="tchk"><input type="checkbox" id="xTimerOn" aria-label="Turn timer"> ⏱</label>
+      <select id="xTimerSec" aria-label="Seconds per turn">
+        <option value="10">10 s</option>
+        <option value="15">15 s</option>
+        <option value="20">20 s</option>
+        <option value="30">30 s</option>
+      </select>
     </div>
   </section>
 </main>
+
+<!-- Bingo room sheet -->
+<div class="sheet hidden" id="sheetB">
+  <div class="sheetBox">
+    <div class="sheetHead"><b>👥 Play with friends</b><button class="x" data-close="sheetB" aria-label="Close">✕</button></div>
+    <div id="bStart">
+      <div class="row">
+        <input id="bName" type="text" maxlength="12" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" style="text-transform:none;letter-spacing:normal;text-align:left">
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="bCreateBtn">Create room</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input id="bJoinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+        <button class="btn alt" id="bJoinBtn">Join</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn alt hidden" id="bLeaveBtn">Leave room</button>
+    </div>
+    <div class="msg" id="bMsg"></div>
+    <div class="hint" id="bPlayers"></div>
+    <div class="hidden" id="infoPanel">
+      <div class="hint" id="calledList"></div>
+      <p class="hint" id="playHint"></p>
+    </div>
+    <p class="hint">Fill all 25 boxes on your own card first (tap boxes in order, or Fill randomly). The host taps Start game. Players then take turns choosing a number: it is crossed on every card in the room and spoken aloud. Only the player whose turn it is can choose. The first to complete 5 lines wins.</p>
+  </div>
+</div>
+
+<!-- XOX online sheet -->
+<div class="sheet hidden" id="sheetX">
+  <div class="sheetBox">
+    <div class="sheetHead"><b>🌐 Online XOX</b><button class="x" data-close="sheetX" aria-label="Close">✕</button></div>
+    <div class="row">
+      <button class="btn" id="createBtn">Create room</button>
+      <button class="btn alt hidden" id="leaveBtn">Leave room</button>
+    </div>
+    <div class="row" id="joinRow" style="margin-top:8px">
+      <input id="joinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+      <button class="btn alt" id="joinBtn">Join</button>
+    </div>
+    <div class="msg" id="onlineMsg"></div>
+    <p class="hint">One player taps Create room and shares the 4-letter code. The other types it and taps Join. The host plays X. Each player has 3 marks: drag them onto the board, then drag them to move. Get three in a row to win.</p>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
@@ -260,10 +283,18 @@ function switchGame(g){
   document.getElementById('bingoGame').classList.toggle('hidden',g!=='bingo');
   document.getElementById('xoxGame').classList.toggle('hidden',g!=='xox');
   document.title=g==='bingo'?'Bingo':'XOX';
+  if(g==='bingo') xTimerStop(); else xTimerRestart();
   if(g==='xox' && isCpu() && !xover && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
 }
 document.getElementById('gBingo').onclick=()=>switchGame('bingo');
 document.getElementById('gXox').onclick=()=>switchGame('xox');
+
+/* pop-up sheets */
+function openSheet(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeSheet(id){ document.getElementById(id).classList.add('hidden'); }
+document.querySelectorAll('.sheet').forEach(sh=>sh.addEventListener('click',e=>{ if(e.target===sh) sh.classList.add('hidden'); }));
+document.querySelectorAll('[data-close]').forEach(b=>{ b.onclick=()=>closeSheet(b.dataset.close); });
+document.getElementById('bRoomBtn').onclick=()=>openSheet('sheetB');
 
 /* ============ BINGO (room play: players take turns choosing a number) ============ */
 const grid=document.getElementById('grid'), banner=document.getElementById('banner'),
@@ -445,7 +476,7 @@ function bJoin(){
 function bGuestData(m){
   if(!m||typeof m!=='object') return;
   if(m.t==='welcome'){
-    bnet.connected=true; clearTimeout(bnet.timer);
+    bnet.connected=true; clearTimeout(bnet.timer); closeSheet('sheetB');
     bnet.name=String(m.name||'Player'); bnet.lastReady=null;
     bmsg('Joined as '+bnet.name+'. Fill your card, then wait for the host to start.');
     render(); return;
@@ -527,8 +558,12 @@ function roomBingo(){
   if(bnet.role==='host') bClaim(bnet.name);
   else if(bnet.connected){ try{ bnet.conn.send({t:'bingo'}); }catch(e){} }
 }
+let bPrevPhase='lobby';
 function roomRender(){
   const inR=!!bnet.peer, host=bnet.role==='host', guest=bnet.role==='guest';
+  document.getElementById('bRoomBtn').textContent=(inR&&bnet.code)?'👥 '+bnet.code:'👥 Room';
+  if(inR && bnet.phase==='playing' && bPrevPhase!=='playing') closeSheet('sheetB');
+  bPrevPhase=inR?bnet.phase:'lobby';
   document.getElementById('bStart').classList.toggle('hidden',inR);
   document.getElementById('bLeaveBtn').classList.toggle('hidden',!inR);
   const hb=document.getElementById('bHostBtn');
@@ -553,7 +588,7 @@ function roomRender(){
   if(guest&&!bnet.connected) t='Connecting to the room…';
   else if(bnet.phase==='lobby'){
     if(!ready) t='Fill all 25 boxes on your card to get ready.';
-    else if(host) t=ro.length<2?'Waiting for friends to join…':(ro.every(x=>x.r)?'Everyone is ready. Tap Start game.':'Waiting for everyone to get ready…');
+    else if(host) t=ro.length<2?'Room '+bnet.code+': waiting for friends…':(ro.every(x=>x.r)?'Everyone is ready. Tap Start game.':'Waiting for everyone to get ready…');
     else t='Ready ✓ Waiting for the host to start.';
   } else if(bnet.phase==='playing'){
     t=bnet.turn===bnet.name?'🎯 Your turn! Tap a number on your card.':'⏳ '+bnet.turn+'’s turn…';
@@ -578,6 +613,58 @@ const XMAX=3; // each player has 3 marks: place them by dragging, then move them
 function cnt(p){ return xb.filter(v=>v===p).length; }
 function how(p){ return cnt(p)<XMAX?'place a mark':'move a mark'; }
 function isCpu(){ return xmode==='easy'||xmode==='hard'; }
+
+/* ============ Optional turn timer ============ */
+let xtimerOn=false, xtimerSec=15, xtimeLeft=0, xtimerId=null, xNoteTimer=null;
+const xTimerEl=document.getElementById('xTimer'), xNoteEl=document.getElementById('xNote'),
+      xTimerOnEl=document.getElementById('xTimerOn'), xTimerSecEl=document.getElementById('xTimerSec');
+function xTimerStop(){ clearInterval(xtimerId); xtimerId=null; xTimerEl.classList.add('hidden'); }
+function xTimerShow(){
+  xTimerEl.textContent='⏱ '+xtimeLeft+'s';
+  xTimerEl.classList.toggle('low',xtimeLeft<=5);
+  xTimerEl.classList.remove('hidden');
+}
+function xTimerRestart(left){
+  xTimerStop();
+  if(!xtimerOn||xover) return;
+  if(isCpu()&&xturn==='O') return;                 // the computer's turn is not timed
+  if(xmode==='online'&&!net.connected) return;
+  xtimeLeft=Number.isFinite(left)&&left>0?Math.round(left):xtimerSec;
+  xTimerShow();
+  xtimerId=setInterval(()=>{
+    xtimeLeft--;
+    if(xtimeLeft>0){ xTimerShow(); return; }
+    xTimerStop();
+    if(xmode==='online'&&net.role!=='host') return; // the host plays for a guest who ran out of time
+    xSkipTurn();
+  },1000);
+}
+function xNote(t){
+  xNoteEl.textContent=t; clearTimeout(xNoteTimer);
+  xNoteTimer=setTimeout(()=>{ xNoteEl.textContent=''; },3500);
+}
+function xSkipTurn(){ // time ran out: this player loses the turn, nothing is played for them
+  if(xover) return;
+  xNote('⏱ Time’s up! '+xturn+' lost the turn.');
+  xturn=xturn==='X'?'O':'X';
+  if(isCpu() && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
+  xTimerRestart();
+  xrender();
+  if(xmode==='online' && net.role==='host') sendState();
+}
+function xTimerUI(){
+  const guest=xmode==='online'&&net.role==='guest';
+  xTimerOnEl.checked=xtimerOn; xTimerSecEl.value=String(xtimerSec);
+  xTimerOnEl.disabled=guest; xTimerSecEl.disabled=guest;
+  xTimerSecEl.title=guest?'The host controls the timer':'If time runs out, that player loses the turn';
+}
+function xTimerChanged(){
+  xtimerOn=xTimerOnEl.checked; xtimerSec=+xTimerSecEl.value||15;
+  xTimerRestart();
+  if(xmode==='online'&&net.role==='host') sendState();
+}
+xTimerOnEl.onchange=xTimerChanged;
+xTimerSecEl.onchange=xTimerChanged;
 
 /* ============ Online play (PeerJS: no account or keys needed) ============ */
 const net={peer:null,conn:null,role:null,mark:null,connected:false,code:null,timer:null};
@@ -651,6 +738,7 @@ function wireConn(c){
     if(net.conn!==c) return;
     clearTimeout(net.timer);
     net.connected=true;
+    closeSheet('sheetX');
     if(net.role==='host'){
       say('Friend joined! You are X and move first.');
       xscore={X:0,O:0,D:0}; xstart='X'; xNewRound(true); sendState();
@@ -665,7 +753,7 @@ function wireConn(c){
 }
 function sendState(){
   if(net.role!=='host'||!net.conn||!net.connected) return;
-  try{ net.conn.send({t:'state',xb,xturn,xstart,xover,xline,xscore}); }catch(e){}
+  try{ net.conn.send({t:'state',xb,xturn,xstart,xover,xline,xscore,timer:{on:xtimerOn,sec:xtimerSec,left:xtimeLeft}}); }catch(e){}
 }
 function onNetData(m){
   if(!m||typeof m!=='object') return;
@@ -684,7 +772,9 @@ function onNetData(m){
     xturn=m.xturn==='O'?'O':'X'; xstart=m.xstart==='O'?'O':'X'; xover=!!m.xover;
     xline=Array.isArray(m.xline)?m.xline.filter(Number.isInteger):[];
     const sc=m.xscore||{}; xscore={X:+sc.X||0,O:+sc.O||0,D:+sc.D||0};
+    const tm=m.timer||{}; xtimerOn=!!tm.on; xtimerSec=[10,15,20,30].includes(+tm.sec)?+tm.sec:15;
     xrender();
+    xTimerRestart(tm.left);
     if(was&&!xover) stopMusic();
     if(!was&&xover){ const w=xwinner(xb); if(w) playSong(w.p===net.mark?WIN_SONG:LOSE_SONG,0.18); }
   }
@@ -709,7 +799,7 @@ function onlineRender(){
   document.getElementById('tokX').classList.toggle('active',conn&&!xover&&xturn==='X'&&me==='X'&&cnt('X')<XMAX);
   document.getElementById('tokO').classList.toggle('active',conn&&!xover&&xturn==='O'&&me==='O'&&cnt('O')<XMAX);
   const w=xwinner(xb);
-  if(!conn) xStatus.textContent=net.peer?'Waiting for connection…':'Create a room or join with a code';
+  if(!conn) xStatus.textContent=net.peer?(net.role==='host'?'Room '+net.code+': waiting for your friend…':'Connecting…'):'Tap 🌐 Online to create or join a room';
   else if(w) xStatus.textContent=w.p===me?'🎉 You win!':'😅 Your friend wins!';
   else if(xover) xStatus.textContent='🤝 It’s a draw!';
   else xStatus.textContent=xturn===me?`Your turn (${me}): ${how(me)}`:`Friend’s turn (${xturn})`;
@@ -748,6 +838,7 @@ function xrender(){
   else if(cpu) xStatus.textContent=xturn==='X'?`Your turn (X): ${how('X')}`:'Computer is thinking…';
   else xStatus.textContent=`Player ${xturn}’s turn: ${how(xturn)}`;
   if(xmode==='online') onlineRender();
+  xTimerUI();
 }
 function xplay(i){ // called when a token from the tray is dropped on square i
   if(xover||xb[i]) return;
@@ -779,6 +870,7 @@ function xfinish(){
     if(isCpu() && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
   }
   xrender();
+  xTimerRestart();
   if(xmode==='online' && net.role==='host') sendState();
 }
 /* Computer: place until it has 3 marks, then move one mark per turn */
@@ -834,14 +926,15 @@ function xNewRound(first){
   xturn=xstart;
   xrender();
   if(isCpu() && xturn==='O') cpuTimer=setTimeout(cpuMove,450);
+  xTimerRestart();
 }
 document.querySelectorAll('#xoxGame .tab').forEach(btn=>{
   btn.onclick=()=>{
     document.querySelectorAll('#xoxGame .tab').forEach(x=>x.classList.toggle('active',x===btn));
-    if(xmode==='online' && btn.dataset.m==='online') return;
+    if(xmode==='online' && btn.dataset.m==='online'){ openSheet('sheetX'); return; }
     if(xmode==='online') leaveRoom();
     xmode=btn.dataset.m; xscore={X:0,O:0,D:0}; xstart='X';
-    document.getElementById('onlinePanel').classList.toggle('hidden',xmode!=='online');
+    if(xmode==='online') openSheet('sheetX');
     xNewRound(true);
   };
 });
