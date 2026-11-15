@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Number Hunt</title>
+<meta name="theme-color" content="#d9480f">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f4f1ea; --surface:#ffffff; --text:#1f2430; --muted:#6b7280;
+  --accent:#d9480f; --accent-text:#ffffff; --cell:#fff7ed; --cell-border:#fdba74;
+  --mark:#2f9e44; --mark-text:#ffffff; --win:#f59f00; --off:#d1d5db; --o:#1971c2;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#16181d; --surface:#222630; --text:#eceef3; --muted:#9aa1b0;
+    --accent:#f76707; --cell:#2c2f3a; --cell-border:#5c4326; --mark:#37b24d; --off:#454a58; --o:#4dabf7;
+  }
+}
+html{height:100%;height:100dvh;overflow:hidden}
+body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:480px;height:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:6px 10px;
+  overflow-x:hidden;overflow-y:auto}
+.hidden{display:none !important}
+.game{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+
+/* shared pieces */
+.sub{text-align:center;color:var(--muted);font-size:.9rem;margin:0;min-height:1.2em;flex:none}
+.sub.turn{font-weight:800;color:var(--accent);font-size:.95rem}
+.banner{text-align:center;font-weight:800;font-size:1rem;margin:0;min-height:1.2em;color:var(--win);flex:none}
+.msg{color:var(--accent);font-size:.8rem;text-align:center;min-height:1.1em;margin:0}
+.hint{color:var(--muted);font-size:.82rem;margin:8px 0 0}
+.boardwrap{flex:1;min-height:130px;container-type:size;display:flex;align-items:center;justify-content:center}
+.card{background:var(--surface);border-radius:14px;padding:8px;box-shadow:0 2px 10px rgba(0,0,0,.12);
+  box-sizing:border-box;width:min(100%,60vh);aspect-ratio:1}
+@supports (width:1cqw){
+  .card{width:min(100cqw,100cqh);height:min(100cqw,100cqh);aspect-ratio:auto;container-type:size}
+}
+.bar{display:flex;gap:6px;align-items:center;flex:none}
+.bar .btn{flex:1;min-width:0;padding:10px 6px;font-size:.88rem;white-space:nowrap}
+#setupPanel{display:contents}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button.btn{padding:12px 16px;border:0;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
+  background:var(--accent);color:var(--accent-text);font-family:inherit}
+button.btn.alt{background:var(--cell);color:var(--text);border:2px solid var(--cell-border)}
+select{padding:8px 4px;border-radius:10px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);font-size:.85rem;font-family:inherit}
+input[type=text]{flex:1;min-width:0;padding:12px;font-size:1rem;border-radius:10px;border:2px solid var(--cell-border);
+  background:var(--cell);color:var(--text);text-transform:uppercase;letter-spacing:.2em;text-align:center}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);margin:0}
+.tchk{display:flex;align-items:center;gap:4px;font-weight:700;font-size:.85rem;margin:0;flex:none}
+
+
+/* Number Hunt */
+.hud{display:flex;gap:6px;align-items:stretch;flex:none}
+.target,.stat{background:var(--surface);border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.12);text-align:center;padding:3px 6px;min-width:0}
+.target{flex:1.4}.stat{flex:1}
+.hud small{display:block;color:var(--muted);font-size:.65rem;font-weight:800;letter-spacing:.08em}
+.target b{display:block;font-size:2.3rem;line-height:1.05;color:var(--accent);font-variant-numeric:tabular-nums}
+.stat b{display:block;font-size:1.25rem;line-height:1.35;font-variant-numeric:tabular-nums}
+.pts{display:flex;gap:6px;margin:0;flex:none}
+.pts div{flex:1;min-width:0;text-align:center;background:var(--surface);border-radius:10px;padding:3px 4px;
+  box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:.72rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pts b{display:inline;font-size:1.05rem;color:var(--text);margin-left:4px}
+.pts .pa b{color:var(--accent)} .pts .pb b{color:var(--o)}
+.hgrid{display:grid;grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(10,1fr);gap:3px;width:100%;height:100%}
+.hcell{min-width:0;min-height:0;padding:0;border:1.5px solid var(--cell-border);background:var(--cell);color:var(--text);border-radius:7px;
+  font-family:inherit;font-weight:700;font-size:.8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+@supports (width:1cqw){ .hcell{font-size:clamp(.55rem,3.7cqw,1.1rem)} }
+.hcell.blank{color:transparent;cursor:default}
+.hcell.found{background:var(--mark);border-color:var(--mark);color:var(--mark-text);opacity:.45}
+.hcell.wrong{background:#e03131;border-color:#e03131;color:#fff}
+.tabs{display:flex;gap:5px;margin:0;flex:none}
+.tab{flex:1;min-width:0;padding:8px 2px;border:2px solid var(--cell-border);background:var(--cell);color:var(--text);
+  border-radius:10px;font-weight:700;font-size:.82rem;white-space:nowrap;cursor:pointer;font-family:inherit}
+.tab.active{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+.bar select{flex:none}
+.line{margin:8px 0;font-size:.95rem}
+.tot{margin:10px 0;font-weight:800}
+/* pop-up sheets (room / online controls) */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheetBox{width:100%;max-width:480px;max-height:88vh;max-height:88dvh;overflow:auto;background:var(--surface);
+  border-radius:18px 18px 0 0;padding:12px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+.sheetHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:1.05rem}
+.x{border:0;background:var(--cell);color:var(--text);width:36px;height:36px;border-radius:10px;font-size:1.1rem;cursor:pointer}
+.iconbtn{flex:0 0 auto;width:44px;padding:0;border:2px solid var(--cell-border);background:var(--surface);
+  border-radius:12px;font-size:1.2rem;cursor:pointer}
+/* standalone sound button (hidden when the game runs inside the main page) */
+.solobar{display:none;align-items:center;justify-content:space-between;flex:none}
+html.standalone .solobar{display:flex}
+.solobar b{font-size:1rem}
+</style>
+</head>
+<body>
+<main>
+  <div class="solobar"><b>🔢 Number Hunt</b><button class="iconbtn" id="musicBtn" title="Sound on/off" aria-label="Sound on/off">🔊</button></div>
+  <section id="huntGame" class="game">
+    <div class="sub" id="status"></div>
+    <div class="hud">
+      <div class="target"><small>FIND</small><b id="tNum">–</b></div>
+      <div class="stat"><small>TIME</small><b id="tTime">0.0s</b></div>
+      <div class="stat"><small>FOUND</small><b id="tProg">0/10</b></div>
+    </div>
+    <div class="pts hidden" id="ptsRow">
+      <div class="pa"><span id="n1">Player 1</span><b id="s1">0.0</b></div>
+      <div class="pb"><span id="n2">Player 2</span><b id="s2">0.0</b></div>
+    </div>
+    <div class="boardwrap"><div class="card"><div class="hgrid" id="hgrid"></div></div></div>
+    <div class="tabs" id="modeTabs">
+      <button class="tab active" data-m="solo">Solo</button>
+      <button class="tab" data-m="pass">2 Players</button>
+      <button class="tab" data-m="online">🌐 Online</button>
+    </div>
+    <div class="bar">
+      <button class="btn" id="startBtn">Start</button>
+      <select id="countSel" aria-label="How many numbers to find">
+        <option value="10">10 nums</option>
+        <option value="25">25 nums</option>
+        <option value="50">50 nums</option>
+        <option value="100">100 nums</option>
+      </select>
+      <button class="btn alt hidden" id="roomBtn">👥 Room</button>
+    </div>
+  </section>
+</main>
+
+<!-- results -->
+<div class="sheet hidden" id="sheetR">
+  <div class="sheetBox">
+    <div class="sheetHead"><b id="resTitle">Results</b><button class="x" data-close="sheetR" aria-label="Close">✕</button></div>
+    <div id="resBody"></div>
+    <div class="row" style="margin-top:8px"><button class="btn" id="resNext">Next round</button></div>
+  </div>
+</div>
+
+<!-- online room -->
+<div class="sheet hidden" id="sheetN">
+  <div class="sheetBox">
+    <div class="sheetHead"><b>🌐 Online Number Hunt</b><button class="x" data-close="sheetN" aria-label="Close">✕</button></div>
+    <div id="nStart">
+      <div class="row">
+        <input id="nName" type="text" maxlength="12" placeholder="Your name (optional)" autocomplete="off" aria-label="Your name" style="text-transform:none;letter-spacing:normal;text-align:left">
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="createBtn">Create room</button></div>
+      <div class="row" id="joinRow" style="margin-top:8px">
+        <input id="joinCode" type="text" maxlength="4" placeholder="Room code" autocapitalize="characters" autocomplete="off" aria-label="Room code">
+        <button class="btn alt" id="joinBtn">Join</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px"><button class="btn alt hidden" id="leaveBtn">Leave room</button></div>
+    <div class="msg" id="onlineMsg"></div>
+    <p class="hint">🔒 Privacy: online play connects players directly, so the other player’s device can see your IP address. Your name is shared only with the person in your room. This game stores nothing on a server; a free public service (PeerJS) only helps the devices find each other.</p>
+    <p class="hint">One player creates a room and shares the 4-letter code; the other joins. Both find the same numbers on the same grid at the same time. The time you take becomes your opponent’s points, so the faster player earns more.</p>
+  </div>
+</div>
+
+<script src="peerjs.min.js"></script>
+<script>
+
+/* ============ Number Hunt ============ */
+const PENALTY=1; // seconds added for each wrong tap
+const $=id=>document.getElementById(id);
+const hgrid=$('hgrid'), statusEl=$('status'), tNum=$('tNum'), tTime=$('tTime'), tProg=$('tProg'),
+      startBtn=$('startBtn'), countSel=$('countSel'), roomBtn=$('roomBtn');
+let mode='solo', N=10, grid=[], targets=[], phase='idle', idx=0, wrong=0, foundSet=new Set(), t0=0;
+let tick=null, cdTimer=null, who=1, round=0, resAct=null;
+let res={a:null,b:null}, pts={a:0,b:0}, nm={a:'Player 1',b:'Player 2'};
+
+/* ----- sound ----- */
+let soundOn=true, ac=null;
+function audio(){
+  if(!ac){ const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return null; ac=new AC(); }
+  if(ac.state==='suspended') ac.resume();
+  return ac;
+}
+function beep(f,d,type,vol,when){
+  if(!soundOn) return;
+  try{
+    const c=audio(); if(!c) return;
+    const t=c.currentTime+(when||0), o=c.createOscillator(), g=c.createGain();
+    o.type=type||'sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.08,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+d+0.02);
+  }catch(e){}
+}
+function tune(){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>beep(f,0.18,'triangle',0.1,i*0.14)); }
+$('musicBtn').onclick=e=>{ soundOn=!soundOn; e.currentTarget.textContent=soundOn?'🔊':'🔇'; };
+
+/* ----- sheets ----- */
+function openSheet(id){ $(id).classList.remove('hidden'); }
+function closeSheet(id){ $(id).classList.add('hidden'); }
+document.querySelectorAll('.sheet').forEach(sh=>sh.addEventListener('click',e=>{ if(e.target===sh) sh.classList.add('hidden'); }));
+document.querySelectorAll('[data-close]').forEach(b=>{ b.onclick=()=>closeSheet(b.dataset.close); });
+roomBtn.onclick=()=>openSheet('sheetN');
+$('resNext').onclick=()=>{ closeSheet('sheetR'); const a=resAct; if(a) a(); };
+
+/* ----- helpers ----- */
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function fmt(t){ return (Math.round(t*10)/10).toFixed(1); }
+function bestKey(){ return 'numberhunt-best-'+N; }
+function getBest(){ try{ const v=parseFloat(localStorage.getItem(bestKey())); return isFinite(v)?v:null; }catch(e){ return null; } }
+function setBest(t){ try{ localStorage.setItem(bestKey(),String(t)); }catch(e){} }
+function newRound(){
+  const all=Array.from({length:100},(_,i)=>i+1);
+  grid=shuffle(all); targets=shuffle(all).slice(0,N); res={a:null,b:null}; round++;
+}
+function elapsed(){ return (performance.now()-t0)/1000+wrong*PENALTY; }
+
+/* ----- grid ----- */
+let cells={};
+function renderGrid(){
+  hgrid.innerHTML=''; cells={};
+  const show=(phase==='playing');
+  const list=grid.length?grid:Array(100).fill(0);
+  list.forEach(n=>{
+    const b=document.createElement('button');
+    b.className='hcell'+(show?'':' blank')+(n&&foundSet.has(n)?' found':'');
+    b.textContent=show?String(n):''; // numbers stay hidden until the run starts
+    b.onclick=()=>onHunt(n,b);
+    hgrid.appendChild(b); if(n) cells[n]=b;
+  });
+}
+
+/* ----- one run ----- */
+function startRun(){
+  clearInterval(tick); clearTimeout(cdTimer);
+  idx=0; wrong=0; foundSet=new Set(); phase='countdown';
+  renderGrid(); tTime.textContent='0.0s'; tProg.textContent='0/'+N;
+  let c=3; tNum.textContent=c; beep(440,0.12); updateUI();
+  const step=()=>{ c--; if(c>0){ tNum.textContent=c; beep(440,0.12); cdTimer=setTimeout(step,800); } else beginPlay(); };
+  cdTimer=setTimeout(step,800);
+}
+function beginPlay(){
+  phase='playing'; t0=performance.now(); renderGrid(); showTarget(); beep(880,0.2);
+  tick=setInterval(()=>{ tTime.textContent=elapsed().toFixed(1)+'s'; },100);
+  updateUI();
+}
+function showTarget(){ tNum.textContent=targets[idx]; tProg.textContent=idx+'/'+N; }
+function flash(t){ statusEl.textContent=t; clearTimeout(flash.t); flash.t=setTimeout(updateUI,900); }
+function onHunt(n,b){
+  if(phase!=='playing'||!n||foundSet.has(n)) return;
+  if(n===targets[idx]){
+    foundSet.add(n); b.classList.add('found'); idx++; beep(988,0.06);
+    tProg.textContent=idx+'/'+N; netProg();
+    if(idx>=N) finishRun(); else showTarget();
+  } else {
+    wrong++; b.classList.add('wrong'); setTimeout(()=>b.classList.remove('wrong'),350); beep(180,0.15,'sawtooth');
+    flash('❌ Wrong! +'+PENALTY+' second'); tTime.textContent=elapsed().toFixed(1)+'s';
+  }
+}
+function finishRun(){
+  clearInterval(tick);
+  const time=Math.round(elapsed()*10)/10;
+  tTime.textContent=time.toFixed(1)+'s'; tNum.textContent='✓'; tune();
+  phase='wait'; renderGrid();
+  if(mode==='solo') soloDone(time);
+  else if(mode==='pass') passDone(time);
+  else onlineFinished(time);
+  updateUI();
+}
+
+/* ----- results ----- */
+function sheetLines(title,lines,btnText,act){
+  $('resTitle').textContent=title;
+  const body=$('resBody'); body.textContent='';
+  lines.forEach(([t,cls])=>{ const p=document.createElement('p'); p.className=cls||'line'; p.textContent=t; body.appendChild(p); });
+  const b=$('resNext'); b.textContent=btnText; b.classList.toggle('hidden',!btnText); resAct=act||null;
+  openSheet('sheetR');
+}
+function soloDone(time){
+  const prev=getBest(); let msgBest;
+  if(prev===null||time<prev){ setBest(time); msgBest=prev===null?'First time recorded!':'🎉 New best time!'; }
+  else msgBest='Best time: '+fmt(prev)+'s';
+  phase='done';
+  sheetLines('⏱ '+fmt(time)+' seconds',[
+    ['Found '+N+' numbers.'],
+    ['Wrong taps: '+wrong+(wrong?' (+'+(wrong*PENALTY)+'s included)':'')],
+    [msgBest,'tot']],'Play again',()=>onStart());
+}
+function passDone(time){
+  if(who===1){
+    res.a=time; who=2; phase='between';
+    sheetLines('Player 1: '+fmt(time)+'s',[['Now pass the phone to Player 2. They will find the same numbers on the same grid.']],'Player 2: Start',()=>startRun());
+  } else {
+    res.b=time; pts.a+=res.b; pts.b+=res.a; phase='done'; updateScores(); showRoundResults();
+  }
+}
+function showRoundResults(){
+  const ta=res.a, tb=res.b;
+  const title=ta===tb?'🤝 It’s a tie!':'🏆 '+(ta<tb?nm.a:nm.b)+' wins the round!';
+  const act=(mode==='online'&&net.role!=='host')?null:()=>onStart();
+  const btn=(mode==='online'&&net.role!=='host')?'':'Next round';
+  sheetLines(title,[
+    [nm.a+': '+fmt(ta)+'s  →  '+nm.b+' earns '+fmt(ta)+' points'],
+    [nm.b+': '+fmt(tb)+'s  →  '+nm.a+' earns '+fmt(tb)+' points'],
+    ['Total points: '+nm.a+' '+fmt(pts.a)+' · '+nm.b+' '+fmt(pts.b),'tot']],btn,act);
+}
+function updateScores(){
+  const me=(mode==='online')?(net.role==='host'?'a':'b'):null;
+  $('n1').textContent=nm.a+(me==='a'?' (you)':''); $('n2').textContent=nm.b+(me==='b'?' (you)':'');
+  $('s1').textContent=fmt(pts.a); $('s2').textContent=fmt(pts.b);
+}
+
+/* ----- start / modes ----- */
+function onStart(){
+  if(mode==='solo'){ N=+countSel.value; newRound(); startRun(); }
+  else if(mode==='pass'){
+    if(phase==='between'){ startRun(); return; }
+    N=+countSel.value; newRound(); who=1; startRun();
+  } else onlineStart();
+}
+startBtn.onclick=onStart;
+countSel.onchange=()=>{ N=+countSel.value; if(phase==='idle'||phase==='done') tProg.textContent='0/'+N; updateUI(); };
+function resetAll(){
+  clearInterval(tick); clearTimeout(cdTimer); phase='idle'; grid=[]; targets=[]; foundSet=new Set();
+  idx=0; wrong=0; who=1; res={a:null,b:null}; pts={a:0,b:0}; nm={a:'Player 1',b:'Player 2'};
+  tNum.textContent='–'; tTime.textContent='0.0s'; tProg.textContent='0/'+N;
+  renderGrid(); updateScores(); updateUI();
+}
+document.querySelectorAll('#modeTabs .tab').forEach(btn=>{
+  btn.onclick=()=>{
+    if(mode==='online' && btn.dataset.m==='online'){ openSheet('sheetN'); return; }
+    document.querySelectorAll('#modeTabs .tab').forEach(x=>x.classList.toggle('active',x===btn));
+    if(mode==='online') leaveRoom();
+    mode=btn.dataset.m; resetAll();
+    if(mode==='online') openSheet('sheetN');
+  };
+});
+function friendName(){ return net.role==='host'?nm.b:nm.a; }
+function updateUI(){
+  const online=mode==='online', host=net.role==='host', busy=(phase==='countdown'||phase==='playing');
+  $('ptsRow').classList.toggle('hidden',mode==='solo');
+  roomBtn.classList.toggle('hidden',!online);
+  roomBtn.textContent=(online&&net.code)?'👥 '+net.code:'👥 Room';
+  countSel.disabled=busy||(online&&net.peer&&!host);
+  if(online&&net.peer&&!host) countSel.value=String(N);
+  // status line
+  let t='';
+  if(phase==='countdown') t='Get ready…';
+  else if(phase==='playing'){
+    if(mode==='pass') t=nm[who===1?'a':'b']+' is playing';
+    else if(online&&net.connected) t=friendName()+': '+(net.prog[host?'b':'a']||0)+'/'+N+' found';
+    else t='Find the number shown above and tap it';
+  }
+  else if(phase==='between') t='Pass the phone to Player 2';
+  else if(phase==='wait') t=online?'Waiting for '+friendName()+' to finish…':'Done!';
+  else if(phase==='done') t=mode==='solo'?'Nice! Tap Play again.':'Round finished. Tap Next round.';
+  else if(online){
+    if(!net.peer) t='Tap 👥 Room to create or join a room';
+    else if(net.reconnecting) t='📶 Reconnecting…';
+    else if(!net.connected) t=host?'Room '+net.code+': waiting for your friend…':'Connecting…';
+    else t=host?'Friend joined. Choose how many numbers, then tap Start round.':'Waiting for the host to start…';
+  }
+  else if(mode==='pass') t='Player 1 plays first, then Player 2 on the same grid.';
+  else { const b=getBest(); t=b===null?'Find each number shown above, as fast as you can.':'Best for '+N+' numbers: '+fmt(b)+'s'; }
+  statusEl.textContent=t;
+  // start button
+  let label='Start', dis=false;
+  if(mode==='solo') label=phase==='playing'?'Restart':(phase==='done'?'Play again':'Start');
+  else if(mode==='pass') label=phase==='between'?'Player 2: Start':(phase==='done'?'Next round':'Start');
+  else {
+    label=phase==='done'?'Next round':'Start round';
+    if(!net.peer||!net.connected||!host) dis=true;
+    if(!host&&net.connected) label='Host starts the round';
+  }
+  if(phase==='countdown'||(phase==='playing'&&mode!=='solo')||phase==='wait') dis=true;
+  startBtn.textContent=label; startBtn.disabled=dis; startBtn.style.opacity=dis?.55:1;
+}
+
+/* ============ Online (PeerJS): the host runs the round, both play the same grid ============ */
+const RECONNECT_MS=60000; // how long a dropped player has to come back
+const ROOM_PREFIX='bingoxox-n-';
+const net={peer:null,conn:null,role:null,connected:false,code:null,timer:null,sid:'',guestSid:null,started:false,opened:false,
+  everConnected:false,reconnecting:false,rtimer:null,retryUntil:0,grace:null,seq:0,lastSeq:0,onPhase:'lobby',myRes:null,prog:{a:0,b:0}};
+const onlineMsg=$('onlineMsg'), createBtn=$('createBtn'), joinBtn=$('joinBtn'), leaveBtn=$('leaveBtn'), joinCode=$('joinCode');
+function say(t){ onlineMsg.textContent=t; }
+function newSid(){ return Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6); }
+function newCode(){ const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c=''; for(let i=0;i<4;i++) c+=a[Math.floor(Math.random()*a.length)]; return c; }
+function keepAlive(peer){ setTimeout(()=>{ try{ if(!peer.destroyed && peer.disconnected) peer.reconnect(); }catch(e){} },1500); }
+function netReady(){
+  if(typeof Peer==='undefined'){ say('Online play couldn’t load. Check your internet connection and reload.'); return false; }
+  return true;
+}
+function setOnlineUI(){
+  const inRoom=!!net.peer;
+  $('nStart').classList.toggle('hidden',inRoom);
+  leaveBtn.classList.toggle('hidden',!inRoom);
+}
+function leaveRoom(m){
+  clearTimeout(net.timer); clearTimeout(net.rtimer); clearTimeout(net.grace);
+  const c=net.conn, p=net.peer, role=net.role, was=net.connected;
+  try{ if(c&&was) c.send({t:role==='host'?'closed':'bye'}); }catch(e){}
+  net.conn=null; net.peer=null; net.role=null; net.connected=false; net.code=null; net.guestSid=null; net.started=false;
+  net.opened=false; net.everConnected=false; net.reconnecting=false; net.onPhase='lobby'; net.myRes=null; net.seq=0; net.lastSeq=0; net.prog={a:0,b:0};
+  setTimeout(()=>{ try{ c&&c.close(); }catch(e){} try{ p&&p.destroy(); }catch(e){} },150);
+  setOnlineUI(); say(typeof m==='string'?m:'');
+  if(mode==='online') resetAll();
+}
+function netError(e){
+  let m='Connection problem. Please try again.';
+  if(e&&e.type==='peer-unavailable') m='Room not found. Check the code and try again.';
+  else if(e&&['network','server-error','socket-error','socket-closed'].includes(e.type)) m='Couldn’t reach the online service. Check your internet connection.';
+  leaveRoom(m);
+}
+function sendTo(m){ try{ if(net.conn&&net.connected) net.conn.send(m); }catch(e){} }
+function sendState(){
+  if(net.role!=='host') return;
+  sendTo({t:'state',onPhase:net.onPhase,seq:net.seq,N,grid,targets,res,pts,nm,prog:net.prog});
+}
+function netProg(){
+  if(mode!=='online'||!net.peer) return;
+  if(net.role==='host'){ net.prog.a=idx; sendTo({t:'prog',prog:net.prog}); }
+  else sendTo({t:'prog',n:idx});
+}
+function createRoom(tries){
+  tries=tries||0;
+  if(!netReady()) return;
+  const code=newCode();
+  say('Creating room…');
+  const peer=new Peer(ROOM_PREFIX+code);
+  net.peer=peer; net.role='host'; net.code=code; net.opened=false; net.guestSid=null; net.started=false; net.connected=false; net.onPhase='lobby';
+  nm.a=$('nName').value.trim().slice(0,12)||'Host'; nm.b='Friend';
+  setOnlineUI(); updateScores(); updateUI();
+  peer.on('open',()=>{ if(net.peer===peer){ net.opened=true; say('Room code: '+code+'. Share it with your friend and wait…'); updateUI(); } });
+  peer.on('connection',c=>{
+    if(net.peer!==peer) return;
+    c.on('data',m=>hostData(c,m));
+    c.on('close',()=>guestGone(c));
+    c.on('error',()=>guestGone(c));
+  });
+  peer.on('disconnected',()=>{ if(net.peer===peer) keepAlive(peer); });
+  peer.on('error',e=>{
+    if(net.peer!==peer) return;
+    if(!net.opened){
+      if(e.type==='unavailable-id' && tries<4){ net.peer=null; try{peer.destroy()}catch(_){} createRoom(tries+1); return; }
+      netError(e); return;
+    }
+    keepAlive(peer);
+  });
+}
+function hostData(c,m){
+  if(!net.peer||net.role!=='host'||!m||typeof m!=='object') return;
+  if(m.t==='hello'){
+    const sid=String(m.sid||'').slice(0,24)||newSid();
+    if(net.guestSid && sid!==net.guestSid){ try{ c.send({t:'busy'}); }catch(e){} setTimeout(()=>{ try{c.close()}catch(e){} },300); return; }
+    net.guestSid=sid;
+    const old=net.conn; net.conn=c;
+    if(old&&old!==c){ try{ old.close(); }catch(e){} }
+    clearTimeout(net.grace);
+    net.connected=true; closeSheet('sheetN');
+    if(!net.started){
+      net.started=true;
+      let n=String(m.name||'').trim().slice(0,12)||'Friend'; if(n===nm.a) n+=' 2'; nm.b=n;
+      say('Friend joined!');
+    } else say('Your friend is back!');
+    try{ c.send({t:'welcome'}); }catch(e){}
+    sendState(); updateScores(); updateUI();
+    return;
+  }
+  if(c!==net.conn) return;
+  if(m.t==='finish'){
+    const time=+m.time;
+    if(net.onPhase==='play' && res.b===null && isFinite(time) && time>0 && time<7200){
+      res.b=Math.round(time*10)/10;
+      if(res.a!==null) completeOnline(); else updateUI();
+    }
+  } else if(m.t==='prog'){
+    const n=+m.n; if(Number.isInteger(n)&&n>=0&&n<=100){ net.prog.b=n; sendTo({t:'prog',prog:net.prog}); updateUI(); }
+  } else if(m.t==='bye'){ leaveRoom('Your friend left the game.'); }
+}
+function guestGone(c){
+  if(net.role!=='host'||c!==net.conn||!net.connected) return;
+  net.connected=false;
+  say('Your friend lost connection. Waiting for them to come back…');
+  clearTimeout(net.grace);
+  net.grace=setTimeout(()=>{ if(net.role==='host' && !net.connected) leaveRoom('Your friend did not come back, so the room was closed.'); },RECONNECT_MS);
+  updateUI();
+}
+function joinRoom(){
+  if(!netReady()) return;
+  const code=joinCode.value.trim().toUpperCase();
+  if(code.length!==4){ say('Enter the 4-character room code.'); return; }
+  say('Connecting…');
+  net.role='guest'; net.code=code; net.sid=newSid(); net.connected=false; net.everConnected=false; net.reconnecting=false; net.lastSeq=0; net.myRes=null;
+  connectGuest(); setOnlineUI(); updateUI();
+}
+function connectGuest(){
+  const peer=new Peer();
+  net.peer=peer;
+  peer.on('open',()=>{
+    if(net.peer!==peer) return;
+    const c=peer.connect(ROOM_PREFIX+net.code,{reliable:true});
+    net.conn=c;
+    c.on('open',()=>{ if(net.conn===c){ try{ c.send({t:'hello',sid:net.sid,name:$('nName').value.trim().slice(0,12)}); }catch(e){} } });
+    c.on('data',m=>{ if(net.conn===c) guestData(m); });
+    c.on('close',()=>{ if(net.conn===c) connLost(); });
+    c.on('error',()=>{ if(net.conn===c) connLost(); });
+  });
+  peer.on('error',e=>{ if(net.peer===peer) peerError(e); });
+  clearTimeout(net.timer);
+  net.timer=setTimeout(()=>{ if(net.peer===peer && !net.connected) attemptFailed(); },12000);
+}
+function connLost(){ if(!net.everConnected){ leaveRoom('Connection lost.'); return; } startReconnect(); }
+function peerError(e){ if(net.reconnecting) attemptFailed(); else if(!net.everConnected) netError(e); }
+function attemptFailed(){
+  if(net.reconnecting){ clearTimeout(net.rtimer); net.rtimer=setTimeout(retry,Math.max(50,Math.min(3000,net.retryUntil-Date.now()+50))); }
+  else if(!net.everConnected) leaveRoom('Couldn’t connect. Check the code and try again.');
+}
+function startReconnect(){
+  if(net.reconnecting||net.role!=='guest') return;
+  net.reconnecting=true; net.connected=false; net.retryUntil=Date.now()+RECONNECT_MS;
+  say('Connection lost. Reconnecting…'); updateUI();
+  clearTimeout(net.rtimer); net.rtimer=setTimeout(retry,300);
+}
+function retry(){
+  if(!net.reconnecting||net.role!=='guest') return;
+  if(Date.now()>net.retryUntil){ leaveRoom('Couldn’t reconnect, so you left the room.'); return; }
+  const oc=net.conn, op=net.peer; net.conn=null; net.peer=null;
+  try{ oc&&oc.close(); }catch(e){}
+  try{ op&&op.destroy(); }catch(e){}
+  connectGuest();
+}
+function guestData(m){
+  if(!m||typeof m!=='object') return;
+  if(m.t==='welcome'){
+    const again=net.reconnecting;
+    clearTimeout(net.timer); clearTimeout(net.rtimer);
+    net.connected=true; net.everConnected=true; net.reconnecting=false; closeSheet('sheetN');
+    say(again?'Reconnected!':'Connected! The host starts the round.');
+    if(net.myRes!==null && net.onPhase==='play') sendTo({t:'finish',time:net.myRes}); // result that did not get through
+    updateUI();
+  }
+  else if(m.t==='closed') leaveRoom('The host closed the room.');
+  else if(m.t==='busy') leaveRoom('This room already has two players.');
+  else if(m.t==='prog'){ if(m.prog){ net.prog={a:+m.prog.a||0,b:+m.prog.b||0}; updateUI(); } }
+  else if(m.t==='state') applyState(m);
+}
+function applyState(m){
+  const okGrid=Array.isArray(m.grid)&&m.grid.length===100&&Array.isArray(m.targets);
+  nm={a:String((m.nm&&m.nm.a)||'Host').slice(0,12), b:String((m.nm&&m.nm.b)||'Friend').slice(0,12)};
+  pts={a:+(m.pts&&m.pts.a)||0, b:+(m.pts&&m.pts.b)||0};
+  if(m.prog) net.prog={a:+m.prog.a||0,b:+m.prog.b||0};
+  if(m.onPhase==='play' && okGrid && m.seq>net.lastSeq){
+    net.lastSeq=m.seq; net.onPhase='play'; net.myRes=null;
+    N=Math.max(1,Math.min(100,+m.N||10)); grid=m.grid.map(Number); targets=m.targets.map(Number); res={a:null,b:null};
+    closeSheet('sheetR'); startRun();
+  } else if(m.onPhase==='done' && net.onPhase!=='done'){
+    net.onPhase='done'; res={a:+(m.res&&m.res.a),b:+(m.res&&m.res.b)};
+    if(isFinite(res.a)&&isFinite(res.b)){ phase='done'; renderGrid(); updateScores(); showRoundResults(); }
+  } else if(m.onPhase==='lobby') net.onPhase='lobby';
+  updateScores(); updateUI();
+}
+function onlineStart(){
+  if(net.role!=='host'||!net.connected) return;
+  N=+countSel.value; newRound(); net.seq++; net.onPhase='play'; net.myRes=null; net.prog={a:0,b:0};
+  closeSheet('sheetR'); sendState(); startRun();
+}
+function onlineFinished(time){
+  net.myRes=time;
+  if(net.role==='host'){ res.a=time; if(res.b!==null) completeOnline(); else phase='wait'; }
+  else { res.b=time; phase='wait'; sendTo({t:'finish',time}); }
+}
+function completeOnline(){
+  pts.a+=res.b; pts.b+=res.a; net.onPhase='done'; phase='done';
+  sendState(); renderGrid(); updateScores(); showRoundResults(); updateUI();
+}
+createBtn.onclick=()=>createRoom();
+joinBtn.onclick=()=>joinRoom();
+leaveBtn.onclick=()=>leaveRoom();
+joinCode.addEventListener('keydown',e=>{ if(e.key==='Enter') joinRoom(); });
+
+/* When the phone wakes up or the network returns, reconnect straight away */
+function wakeNet(){
+  try{ if(net.peer && net.role==='host' && net.peer.disconnected && !net.peer.destroyed) net.peer.reconnect(); }catch(e){}
+  if(net.reconnecting){ clearTimeout(net.rtimer); net.rtimer=setTimeout(retry,100); }
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) wakeNet(); });
+window.addEventListener('online',wakeNet);
+
+function gameVisible(on){ if(!on){ try{ if(ac) ac.suspend(); }catch(e){} } else { try{ if(ac) ac.resume(); }catch(e){} } }
+/* messages from the main page (sound on/off, game shown/hidden) */
+window.addEventListener('message',e=>{
+  if(e.source!==window.parent) return;
+  const m=e.data; if(!m||m.app!=='games') return;
+  if(m.t==='sound') soundOn=!!m.on;
+  if(m.t==='visible') gameVisible(!!m.on);
+});
+if(window.parent===window) document.documentElement.classList.add('standalone');
+else { try{ window.parent.postMessage({app:'games',t:'ready'},'*'); }catch(e){} }
+
+renderGrid(); updateScores(); updateUI();
+</script>
+</body>
+</html>
